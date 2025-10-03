@@ -248,19 +248,3 @@ jobs:
       run: |
         echo "API_URL=$(cd terraform && tofu output -raw lambda_function_url)" >> $GITHUB_ENV
         
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.run_number }}
-        release_name: Release v${{ github.run_number }}
-        body: |
-          🚀 **Deployment completed for PRODUCTION**
-          
-          API URL: ${{ env.API_URL }}
-          
-          Changes included:
-          - See commits since last release
-        draft: false
-        prerelease: false
