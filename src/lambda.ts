@@ -4,7 +4,6 @@ import { AppModule } from './app.module';
 import {
   Handler,
   Context,
-  Callback,
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
 } from 'aws-lambda';
@@ -31,15 +30,8 @@ async function createNestServer(): Promise<serverless.Handler> {
 export const handler: Handler<
   APIGatewayProxyEvent,
   APIGatewayProxyResult
-> = async (
-  event: APIGatewayProxyEvent,
-  context: Context,
-  callback: Callback,
-) => {
+> = async (event: APIGatewayProxyEvent, context: Context) => {
   const server = await createNestServer();
-  return server(
-    event as Parameters<serverless.Handler>[0],
-    context as Parameters<serverless.Handler>[1],
-    callback as Parameters<serverless.Handler>[2],
-  );
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  return server(event, context);
 };
