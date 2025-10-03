@@ -123,6 +123,13 @@ jobs:
         export TF_BACKEND_KEY="${{ env.PROJECT_NAME }}/terraform.tfstate"
         export TF_BACKEND_REGION="${{ env.AWS_REGION }}"
         export TF_BACKEND_DYNAMODB_TABLE="terraform-state-lock"
+        
+        echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
+        echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
+        echo "🔍 Debug: TF_BACKEND_KEY = $TF_BACKEND_KEY"
+        echo "🔍 Debug: TF_BACKEND_REGION = $TF_BACKEND_REGION"
+        echo "🔍 Debug: TF_BACKEND_DYNAMODB_TABLE = $TF_BACKEND_DYNAMODB_TABLE"
+        
         ./deploy.sh dev ${{ env.PROJECT_NAME }} --ci
         
     - name: Get Lambda Function URL
@@ -168,9 +175,73 @@ jobs:
       with:
         tofu_version: 1.6.0
         
+    - name: Setup Terraform Backend
+      run: |
+        # Create S3 bucket for Terraform state if it doesn't exist
+        STATE_BUCKET="${{ env.PROJECT_NAME }}-terraform-state-prod-${{ github.run_id }}"
+        echo "STATE_BUCKET=$STATE_BUCKET" >> $GITHUB_ENV
+        
+        # Check if bucket exists, create if not
+        if ! aws s3 ls "s3://$STATE_BUCKET" 2>&1 | grep -q 'NoSuchBucket'; then
+          echo "✅ S3 bucket $STATE_BUCKET already exists"
+        else
+          echo "📦 Creating S3 bucket for Terraform state..."
+          aws s3 mb s3://$STATE_BUCKET --region ${{ env.AWS_REGION }}
+          
+          # Enable versioning
+          aws s3api put-bucket-versioning \
+            --bucket $STATE_BUCKET \
+            --versioning-configuration Status=Enabled
+          
+          # Enable encryption
+          aws s3api put-bucket-encryption \
+            --bucket $STATE_BUCKET \
+            --server-side-encryption-configuration '{
+              "Rules": [{
+                "ApplyServerSideEncryptionByDefault": {
+                  "SSEAlgorithm": "AES256"
+                }
+              }]
+            }'
+          
+          # Block public access
+          aws s3api put-public-access-block \
+            --bucket $STATE_BUCKET \
+            --public-access-block-configuration \
+            BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+        fi
+        
+        # Create DynamoDB table for state locking if it doesn't exist
+        if ! aws dynamodb describe-table --table-name terraform-state-lock --region ${{ env.AWS_REGION }} 2>&1 | grep -q 'ResourceNotFoundException'; then
+          echo "✅ DynamoDB table terraform-state-lock already exists"
+        else
+          echo "🔒 Creating DynamoDB table for state locking..."
+          aws dynamodb create-table \
+            --table-name terraform-state-lock \
+            --attribute-definitions AttributeName=LockID,AttributeType=S \
+            --key-schema AttributeName=LockID,KeyType=HASH \
+            --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
+            --region ${{ env.AWS_REGION }}
+          
+          # Wait for table to be created
+          aws dynamodb wait table-exists --table-name terraform-state-lock --region ${{ env.AWS_REGION }}
+        fi
+        
     - name: Deploy with OpenTofu
       run: |
         chmod +x deploy.sh
+        # Set backend configuration for the script
+        export TF_BACKEND_BUCKET="$STATE_BUCKET"
+        export TF_BACKEND_KEY="${{ env.PROJECT_NAME }}/terraform.tfstate"
+        export TF_BACKEND_REGION="${{ env.AWS_REGION }}"
+        export TF_BACKEND_DYNAMODB_TABLE="terraform-state-lock"
+        
+        echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
+        echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
+        echo "🔍 Debug: TF_BACKEND_KEY = $TF_BACKEND_KEY"
+        echo "🔍 Debug: TF_BACKEND_REGION = $TF_BACKEND_REGION"
+        echo "🔍 Debug: TF_BACKEND_DYNAMODB_TABLE = $TF_BACKEND_DYNAMODB_TABLE"
+        
         ./deploy.sh prod ${{ env.PROJECT_NAME }} --ci
         
     - name: Get Lambda Function URL

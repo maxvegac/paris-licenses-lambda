@@ -89,8 +89,16 @@ fi
 
 # Initialize OpenTofu
 echo "🔧 Initializing OpenTofu..."
-if [[ -n "$TF_BACKEND_BUCKET" ]]; then
+echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
+echo "🔍 Debug: CI_MODE = $CI_MODE"
+
+if [[ -n "$TF_BACKEND_BUCKET" && "$CI_MODE" == "--ci" ]]; then
     echo "🌐 Using remote backend configuration..."
+    echo "📦 Bucket: $TF_BACKEND_BUCKET"
+    echo "🔑 Key: $TF_BACKEND_KEY"
+    echo "🌍 Region: $TF_BACKEND_REGION"
+    echo "🔒 DynamoDB: $TF_BACKEND_DYNAMODB_TABLE"
+    
     tofu init \
       -backend-config="bucket=$TF_BACKEND_BUCKET" \
       -backend-config="key=$TF_BACKEND_KEY" \
