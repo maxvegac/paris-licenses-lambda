@@ -170,8 +170,8 @@ jobs:
         
     - name: Deploy with OpenTofu
       run: |
-        chmod +x deploy-local.sh
-        ./deploy-local.sh prod ${{ env.PROJECT_NAME }} --ci
+        chmod +x deploy.sh
+        ./deploy.sh prod ${{ env.PROJECT_NAME }} --ci
         
     - name: Get Lambda Function URL
       run: |
