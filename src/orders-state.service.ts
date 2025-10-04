@@ -7,8 +7,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
-  GetCommand,
   QueryCommand,
+  GetCommand,
 } from '@aws-sdk/lib-dynamodb';
 
 export interface OrderState {
@@ -45,7 +45,7 @@ export class OrdersStateService {
   }
 
   /**
-   * Mark an order as processed
+   * Mark an order as processed (update existing or create new)
    */
   async markOrderAsProcessed(
     orderNumber: string,
@@ -55,6 +55,7 @@ export class OrdersStateService {
       const now = new Date().toISOString();
       const ttl = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days from now
 
+      // Create or update processed order (now with only orderNumber as key)
       const orderState: OrderState = {
         orderNumber,
         processedAt: now,
@@ -69,7 +70,6 @@ export class OrdersStateService {
       });
 
       await this.dynamoClient.send(command);
-
       this.logger.log(`Order ${orderNumber} marked as processed`);
     } catch (error) {
       const errorMessage =
@@ -83,7 +83,7 @@ export class OrdersStateService {
   }
 
   /**
-   * Mark an order as failed
+   * Mark an order as failed (update existing or create new)
    */
   async markOrderAsFailed(
     orderNumber: string,
@@ -93,6 +93,7 @@ export class OrdersStateService {
       const now = new Date().toISOString();
       const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days from now
 
+      // Create or update failed order (now with only orderNumber as key)
       const orderState: OrderState = {
         orderNumber,
         processedAt: now,
@@ -107,7 +108,6 @@ export class OrdersStateService {
       });
 
       await this.dynamoClient.send(command);
-
       this.logger.log(`Order ${orderNumber} marked as failed: ${errorMessage}`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -120,20 +120,75 @@ export class OrdersStateService {
   }
 
   /**
-   * Check if an order has been processed
+   * Get existing order by orderNumber (now using GetCommand with only orderNumber as key)
    */
-  async isOrderProcessed(orderNumber: string): Promise<boolean> {
+  async getExistingOrder(orderNumber: string): Promise<OrderState | null> {
     try {
       const command = new GetCommand({
         TableName: this.tableName,
         Key: {
-          orderNumber,
-          processedAt: 'processed', // We'll use a fixed value for the range key when checking
+          orderNumber: orderNumber,
         },
       });
 
       const result = await this.dynamoClient.send(command);
-      return !!result.Item;
+      return (result.Item as OrderState) || null;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting existing order ${orderNumber}:`,
+        errorMessage,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get existing failed order if it exists (now using GetCommand)
+   */
+  async getExistingFailedOrder(
+    orderNumber: string,
+  ): Promise<OrderState | null> {
+    try {
+      const order = await this.getExistingOrder(orderNumber);
+      return order && order.status === 'failed' ? order : null;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting existing failed order ${orderNumber}:`,
+        errorMessage,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Check if an order has been failed (now using GetCommand)
+   */
+  async isOrderFailed(orderNumber: string): Promise<boolean> {
+    try {
+      const order = await this.getExistingOrder(orderNumber);
+      return order?.status === 'failed';
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error checking if order ${orderNumber} is failed:`,
+        errorMessage,
+      );
+      return false; // Assume not failed if we can't check
+    }
+  }
+
+  /**
+   * Check if an order has been processed (now using GetCommand)
+   */
+  async isOrderProcessed(orderNumber: string): Promise<boolean> {
+    try {
+      const order = await this.getExistingOrder(orderNumber);
+      return order?.status === 'processed';
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -252,7 +307,7 @@ export class OrdersStateService {
   }
 
   /**
-   * Filter out already processed orders
+   * Filter out already processed orders (but include failed orders for retry)
    */
   async filterNewOrders(orders: any[]): Promise<any[]> {
     try {
@@ -260,6 +315,8 @@ export class OrdersStateService {
 
       for (const order of orders) {
         const isProcessed = await this.isOrderProcessed(order.orderNumber);
+
+        // Include orders that are not processed (including failed ones for retry)
         if (!isProcessed) {
           newOrders.push(order);
         }
