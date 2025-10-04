@@ -66,7 +66,7 @@ jobs:
     - name: Setup Terraform Backend
       run: |
         # Create S3 bucket for Terraform state if it doesn't exist
-        STATE_BUCKET="${{ env.PROJECT_NAME }}-terraform-state-${{ github.run_id }}"
+        STATE_BUCKET="${{ env.PROJECT_NAME }}-terraform-state"
         echo "STATE_BUCKET=$STATE_BUCKET" >> $GITHUB_ENV
         
         # Check if bucket exists, create if not
@@ -178,7 +178,7 @@ jobs:
     - name: Setup Terraform Backend
       run: |
         # Create S3 bucket for Terraform state if it doesn't exist
-        STATE_BUCKET="${{ env.PROJECT_NAME }}-terraform-state-prod-${{ github.run_id }}"
+        STATE_BUCKET="${{ env.PROJECT_NAME }}-terraform-state-prod"
         echo "STATE_BUCKET=$STATE_BUCKET" >> $GITHUB_ENV
         
         # Check if bucket exists, create if not

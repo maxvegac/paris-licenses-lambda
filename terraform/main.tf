@@ -59,6 +59,10 @@ resource "aws_iam_role" "lambda_role" {
       }
     ]
   })
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # IAM Policy for Lambda
@@ -109,6 +113,10 @@ resource "aws_lambda_function" "api" {
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.project_name}-api"
   retention_in_days = 14
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # Lambda Function URL
