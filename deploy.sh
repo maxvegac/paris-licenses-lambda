@@ -46,6 +46,14 @@ mkdir -p lambda-build
 cp -r dist/* lambda-build/
 cp package.json lambda-build/
 
+# Copy static files (public directory)
+if [ -d "public" ]; then
+    echo "📁 Copying static files from public/..."
+    cp -r public lambda-build/
+else
+    echo "⚠️  Warning: public/ directory not found"
+fi
+
 # Install only production dependencies
 echo "📦 Installing production dependencies..."
 cd lambda-build

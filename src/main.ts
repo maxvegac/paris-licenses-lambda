@@ -17,7 +17,12 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Serve static files from public directory
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  // In Lambda, files are in /var/task/, in local development they're in the project root
+  const publicPath = process.env.AWS_LAMBDA_FUNCTION_NAME 
+    ? join(__dirname, 'public')  // Lambda: /var/task/public
+    : join(__dirname, '..', 'public');  // Local: project/public
+  
+  app.useStaticAssets(publicPath);
 
   await app.listen(process.env.PORT ?? 3000);
   logger.log(`Server is running on port ${process.env.PORT ?? 3000}`);
