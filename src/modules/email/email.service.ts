@@ -35,9 +35,8 @@ export class EmailService {
 
       // Check if we're in development mode and should redirect emails
       const isDevelopment =
-        process.env.NODE_ENV === 'development' ||
-        process.env.DEV_EMAIL_REDIRECT === 'true';
-      const devEmail = process.env.DEV_EMAIL || process.env.SMTP_USER;
+        process.env.DEV_EMAIL_REDIRECT?.toLowerCase() === 'true'
+      const devEmail = process.env.DEV_EMAIL || process.env.dev_email || process.env.SMTP_USER;
 
       let recipientEmail = emailData.customerEmail;
       let subject = `Orden ${emailData.orderNumber} - Entrega de licencia ${emailData.productName}`;
@@ -82,9 +81,9 @@ export class EmailService {
   private generateEmailHTML(emailData: EmailData): string {
     try {
       // Read the template file
-      // In Lambda, files are in /var/task/, in local development they're in the project root
-      const templatePath = process.env.AWS_LAMBDA_FUNCTION_NAME
-        ? '/var/task/templates/email/license-delivery.html'  // Lambda: ruta absoluta
+      // In Lambda, use LAMBDA_TASK_ROOT, in local development use project root
+      const templatePath = process.env.LAMBDA_TASK_ROOT
+        ? path.join(process.env.LAMBDA_TASK_ROOT, 'templates', 'email', 'license-delivery.html')  // Lambda: LAMBDA_TASK_ROOT/templates/email/license-delivery.html
         : path.join(process.cwd(), 'templates', 'email', 'license-delivery.html');  // Local: project/templates/email/license-delivery.html
       
       const templateSource = fs.readFileSync(templatePath, 'utf8');

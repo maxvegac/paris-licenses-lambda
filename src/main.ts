@@ -17,9 +17,9 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Serve static files from public directory
-  // In Lambda, files are in /var/task/, in local development they're in the project root
-  const publicPath = process.env.AWS_LAMBDA_FUNCTION_NAME 
-    ? join(__dirname, 'public')  // Lambda: /var/task/public
+  // In Lambda, use LAMBDA_TASK_ROOT, in local development use project root
+  const publicPath = process.env.LAMBDA_TASK_ROOT 
+    ? join(process.env.LAMBDA_TASK_ROOT, 'public')  // Lambda: LAMBDA_TASK_ROOT/public
     : join(__dirname, '..', 'public');  // Local: project/public
   
   // Serve static assets with proper prefix
