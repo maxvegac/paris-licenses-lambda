@@ -33,7 +33,11 @@ export class OrdersStateService {
       region: process.env.AWS_REGION || 'us-east-1',
     });
 
-    this.dynamoClient = DynamoDBDocumentClient.from(client);
+    this.dynamoClient = DynamoDBDocumentClient.from(client, {
+      marshallOptions: {
+        removeUndefinedValues: true,
+      },
+    });
 
     this.logger.log(
       `OrdersStateService initialized with table: ${this.tableName}`,
@@ -202,6 +206,11 @@ export class OrdersStateService {
     totalProcessed: number;
     totalFailed: number;
     lastProcessed?: string;
+    failedOrders?: Array<{
+      orderNumber: string;
+      errorMessage: string;
+      processedAt: string;
+    }>;
   }> {
     try {
       const [processedOrders, failedOrders] = await Promise.all([
@@ -217,10 +226,18 @@ export class OrdersStateService {
         )
         .map((order) => order.processedAt)[0];
 
+      // Format failed orders for better error reporting
+      const failedOrdersDetails = failedOrders.map((order) => ({
+        orderNumber: order.orderNumber,
+        errorMessage: order.errorMessage || 'Unknown error',
+        processedAt: order.processedAt,
+      }));
+
       return {
         totalProcessed: processedOrders.length,
         totalFailed: failedOrders.length,
         lastProcessed,
+        failedOrders: failedOrdersDetails,
       };
     } catch (error) {
       const errorMessage =
@@ -229,6 +246,7 @@ export class OrdersStateService {
       return {
         totalProcessed: 0,
         totalFailed: 0,
+        failedOrders: [],
       };
     }
   }

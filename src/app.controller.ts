@@ -28,6 +28,11 @@ export class AppController {
       totalProcessed: number;
       totalFailed: number;
       lastProcessed?: string;
+      failedOrders?: Array<{
+        orderNumber: string;
+        errorMessage: string;
+        processedAt: string;
+      }>;
     };
   }> {
     const newOrders = await this.parisService.getNewOrders();
@@ -44,8 +49,24 @@ export class AppController {
     totalProcessed: number;
     totalFailed: number;
     lastProcessed?: string;
+    failedOrders?: Array<{
+      orderNumber: string;
+      errorMessage: string;
+      processedAt: string;
+    }>;
   }> {
     return await this.parisService.getOrderStats();
+  }
+
+  @Get('orders/failed')
+  async getFailedOrders(): Promise<
+    Array<{
+      orderNumber: string;
+      errorMessage: string;
+      processedAt: string;
+    }>
+  > {
+    return await this.parisService.getFailedOrders();
   }
 
   // License Management Endpoints

@@ -306,6 +306,8 @@ export class ParisService {
         try {
           // Try to assign a license to the order
           let assignedLicense: string | null = null;
+          let licenseError: string | null = null;
+
           try {
             assignedLicense = await this.licensesService.assignLicenseToOrder(
               order.orderNumber,
@@ -318,35 +320,48 @@ export class ParisService {
                 `License ${assignedLicense} assigned to order ${order.orderNumber}`,
               );
             } else {
-              this.logger.warn(
-                `No available license for order ${order.orderNumber}`,
-              );
+              licenseError = `No available license for order ${order.orderNumber}`;
+              this.logger.warn(licenseError);
             }
-          } catch (licenseError) {
-            const licenseErrorMessage =
-              licenseError instanceof Error
-                ? licenseError.message
-                : 'Unknown error';
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            licenseError = `Failed to assign license: ${errorMessage}`;
             this.logger.error(
               `Failed to assign license to order ${order.orderNumber}:`,
-              licenseErrorMessage,
+              errorMessage,
             );
-            // Continue processing even if license assignment fails
           }
 
-          // Add assigned license to order data
-          const orderWithLicense: ParisOrder = {
-            ...order,
-            assignedLicense: assignedLicense || undefined,
-          } as ParisOrder;
+          // Only mark as processed if license was successfully assigned
+          if (assignedLicense) {
+            // Add assigned license to order data and clean undefined values
+            const orderWithLicense: ParisOrder = {
+              ...order,
+              assignedLicense: assignedLicense,
+            } as ParisOrder;
 
-          // Mark order as processed
-          await this.ordersStateService.markOrderAsProcessed(
-            order.orderNumber,
-            orderWithLicense,
-          );
+            // Clean undefined values from the order data
+            const cleanedOrderData = Object.fromEntries(
+              Object.entries(orderWithLicense).filter(
+                ([, value]) => value !== undefined,
+              ),
+            );
 
-          processedOrders.push(orderWithLicense);
+            // Mark order as processed
+            await this.ordersStateService.markOrderAsProcessed(
+              order.orderNumber,
+              cleanedOrderData,
+            );
+
+            processedOrders.push(orderWithLicense);
+          } else {
+            // Mark order as failed if no license was assigned
+            await this.ordersStateService.markOrderAsFailed(
+              order.orderNumber,
+              licenseError || 'No license available',
+            );
+          }
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error';
@@ -391,7 +406,30 @@ export class ParisService {
     totalProcessed: number;
     totalFailed: number;
     lastProcessed?: string;
+    failedOrders?: Array<{
+      orderNumber: string;
+      errorMessage: string;
+      processedAt: string;
+    }>;
   }> {
     return await this.ordersStateService.getOrderStats();
+  }
+
+  /**
+   * Gets failed orders with error details
+   */
+  async getFailedOrders(): Promise<
+    Array<{
+      orderNumber: string;
+      errorMessage: string;
+      processedAt: string;
+    }>
+  > {
+    const failedOrders = await this.ordersStateService.getFailedOrders();
+    return failedOrders.map((order) => ({
+      orderNumber: order.orderNumber,
+      errorMessage: order.errorMessage || 'Unknown error',
+      processedAt: order.processedAt,
+    }));
   }
 }

@@ -32,7 +32,11 @@ export class LicensesService {
       region: process.env.AWS_REGION || 'us-east-1',
     });
 
-    this.dynamoClient = DynamoDBDocumentClient.from(client);
+    this.dynamoClient = DynamoDBDocumentClient.from(client, {
+      marshallOptions: {
+        removeUndefinedValues: true,
+      },
+    });
 
     this.logger.log(
       `LicensesService initialized with table: ${this.tableName}`,
