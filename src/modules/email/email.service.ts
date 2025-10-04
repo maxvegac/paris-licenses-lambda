@@ -84,7 +84,7 @@ export class EmailService {
       // Read the template file
       // In Lambda, files are in /var/task/, in local development they're in the project root
       const templatePath = process.env.AWS_LAMBDA_FUNCTION_NAME
-        ? path.join(__dirname, '..', '..', '..', 'templates', 'email', 'license-delivery.html')  // Lambda: /var/task/templates/email/license-delivery.html
+        ? '/var/task/templates/email/license-delivery.html'  // Lambda: ruta absoluta
         : path.join(process.cwd(), 'templates', 'email', 'license-delivery.html');  // Local: project/templates/email/license-delivery.html
       
       const templateSource = fs.readFileSync(templatePath, 'utf8');
