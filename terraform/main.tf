@@ -143,7 +143,7 @@ resource "aws_lambda_function" "api" {
 resource "aws_cloudwatch_event_rule" "sync_schedule" {
   name                = "${var.project_name}-sync-schedule"
   description         = "Trigger automatic sync of Paris orders"
-  schedule_expression = "rate(1 hour)" # Run every hour (optimized for low volume)
+  schedule_expression = "rate(2 hours)" # Run every 2 hours (optimized for free tier)
 
   tags = {
     Name        = "${var.project_name}-sync-schedule"
