@@ -22,7 +22,10 @@ async function bootstrap() {
     ? join(__dirname, 'public')  // Lambda: /var/task/public
     : join(__dirname, '..', 'public');  // Local: project/public
   
-  app.useStaticAssets(publicPath);
+  // Serve static assets with proper prefix
+  app.useStaticAssets(publicPath, {
+    prefix: '/',
+  });
 
   await app.listen(process.env.PORT ?? 3000);
   logger.log(`Server is running on port ${process.env.PORT ?? 3000}`);
