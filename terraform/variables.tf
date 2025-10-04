@@ -28,3 +28,15 @@ variable "lambda_memory_size" {
   default     = 512
 }
 
+variable "paris_api_email" {
+  description = "Paris API email for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "paris_api_password" {
+  description = "Paris API password for authentication"
+  type        = string
+  sensitive   = true
+}
+

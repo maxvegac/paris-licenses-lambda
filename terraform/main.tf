@@ -99,7 +99,9 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      NODE_ENV = var.environment
+      NODE_ENV           = var.environment
+      PARIS_API_EMAIL    = var.paris_api_email
+      PARIS_API_PASSWORD = var.paris_api_password
     }
   }
 
