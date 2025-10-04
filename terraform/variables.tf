@@ -40,3 +40,39 @@ variable "paris_api_password" {
   sensitive   = true
 }
 
+variable "smtp_user" {
+  description = "SMTP user for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "smtp_password" {
+  description = "SMTP password for authentication"
+  type        = string
+  sensitive   = true
+}
+
+variable "smtp_from_email" {
+  description = "Email address to use as 'from' in sent emails"
+  type        = string
+  sensitive   = true
+}
+
+variable "smtp_from_name" {
+  description = "Name to use as 'from' in sent emails"
+  type        = string
+  default     = "Equipo IVI"
+}
+
+variable "dev_email_redirect" {
+  description = "Enable email redirection in development mode"
+  type        = string
+  default     = "false"
+}
+
+variable "dev_email" {
+  description = "Development email for redirected emails"
+  type        = string
+  default     = ""
+}
+

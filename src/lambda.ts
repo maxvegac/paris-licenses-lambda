@@ -4,7 +4,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { AppController } from './app.controller';
+import { SyncController } from './modules/sync/sync.controller';
 import {
   Handler,
   Context,
@@ -59,8 +59,8 @@ export const handler: Handler<
       const app = await NestFactory.create(AppModule, adapter);
       await app.init();
 
-      const appController = app.get(AppController);
-      const result = await appController.syncOrders();
+      const syncController = app.get(SyncController);
+      const result = await syncController.syncOrders();
 
       console.log(
         `✅ Sync completed: ${result.newOrders.length} new orders, ${result.stats.totalProcessed} total processed`,

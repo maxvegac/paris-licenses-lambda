@@ -70,6 +70,9 @@
                         <button class="btn btn-success me-2" onclick="loadFailedOrders()">
                             <i class="bi bi-list-check"></i> Ver Órdenes Fallidas
                         </button>
+                        <button class="btn btn-secondary me-2" onclick="loadProcessedOrders()">
+                            <i class="bi bi-check-circle"></i> Ver Órdenes Procesadas
+                        </button>
                         <button class="btn btn-info me-2" onclick="loadStats()">
                             <i class="bi bi-graph-up"></i> Actualizar Estadísticas
                         </button>
@@ -161,12 +164,14 @@
             </div>
         </div>
 
-        <!-- Failed Orders -->
+        <!-- Orders Section -->
         <div class="row">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Órdenes Fallidas</h5>
+                        <h5 class="mb-0" id="orders-section-title">
+                            <i class="bi bi-exclamation-triangle"></i> Órdenes Fallidas
+                        </h5>
                     </div>
                     <div class="card-body">
                         <div id="orders-container">

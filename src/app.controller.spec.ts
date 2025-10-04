@@ -1,42 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ParisService } from './paris.service';
-import { LicensesService } from './licenses.service';
-import { OrdersStateService } from './orders-state.service';
 import { Response } from 'express';
 
-// Mock ParisService
-const mockParisService = {
-  getOrders: jest.fn(),
-  getNewOrders: jest.fn(),
-  getOrderStats: jest.fn(),
-};
-
-// Mock LicensesService
-const mockLicensesService = {
-  addLicense: jest.fn(),
-  addLicenses: jest.fn(),
-  getAvailableLicenses: jest.fn(),
-  getUsedLicenses: jest.fn(),
-  getLicenseStats: jest.fn(),
-  getLicensesByOrder: jest.fn(),
-  releaseLicense: jest.fn(),
-  assignLicenseToOrder: jest.fn(),
-};
-
-// Mock OrdersStateService
-const mockOrdersStateService = {
-  markOrderAsProcessed: jest.fn(),
-  markOrderAsFailed: jest.fn(),
-  getExistingOrder: jest.fn(),
-  getExistingFailedOrder: jest.fn(),
-  isOrderFailed: jest.fn(),
-  isOrderProcessed: jest.fn(),
-  getProcessedOrders: jest.fn(),
-  getFailedOrders: jest.fn(),
-  getOrderStats: jest.fn(),
-  filterNewOrders: jest.fn(),
+// Mock AppService
+const mockAppService = {
+  getHello: jest.fn().mockReturnValue('Hello World!'),
 };
 
 describe('AppController', () => {
@@ -49,18 +18,9 @@ describe('AppController', () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
       providers: [
-        AppService,
         {
-          provide: ParisService,
-          useValue: mockParisService,
-        },
-        {
-          provide: LicensesService,
-          useValue: mockLicensesService,
-        },
-        {
-          provide: OrdersStateService,
-          useValue: mockOrdersStateService,
+          provide: AppService,
+          useValue: mockAppService,
         },
       ],
     }).compile();
@@ -77,80 +37,21 @@ describe('AppController', () => {
       appController.getDashboard(mockRes);
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(mockRes.sendFile).toHaveBeenCalledWith('index.html', { root: 'public' });
-    });
-  });
-
-  describe('orders', () => {
-    it('should return orders from ParisService', async () => {
-      // Arrange
-      const mockOrders = [
-        {
-          orderNumber: '12345',
-          customerName: 'John Doe',
-          customerEmail: 'john@example.com',
-        },
-      ];
-      mockParisService.getOrders.mockResolvedValueOnce(mockOrders);
-
-      // Act
-      const result = await appController.getOrders();
-
-      // Assert
-      expect(result).toEqual(mockOrders);
-      expect(mockParisService.getOrders).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('sync', () => {
-    it('should return new orders and stats', async () => {
-      // Arrange
-      const mockNewOrders = [
-        {
-          orderNumber: '67890',
-          customerName: 'Jane Smith',
-          customerEmail: 'jane@example.com',
-        },
-      ];
-      const mockStats = {
-        totalProcessed: 5,
-        totalFailed: 1,
-        lastProcessed: '2025-01-15T10:30:00Z',
-      };
-
-      mockParisService.getNewOrders.mockResolvedValueOnce(mockNewOrders);
-      mockParisService.getOrderStats.mockResolvedValueOnce(mockStats);
-
-      // Act
-      const result = await appController.syncOrders();
-
-      // Assert
-      expect(result).toEqual({
-        newOrders: mockNewOrders,
-        stats: mockStats,
+      expect(mockRes.sendFile).toHaveBeenCalledWith('index.html', {
+        root: 'public',
       });
-      expect(mockParisService.getNewOrders).toHaveBeenCalledTimes(1);
-      expect(mockParisService.getOrderStats).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('stats', () => {
-    it('should return order statistics', async () => {
-      // Arrange
-      const mockStats = {
-        totalProcessed: 10,
-        totalFailed: 2,
-        lastProcessed: '2025-01-15T10:30:00Z',
-      };
+  describe('health', () => {
+    it('should return health status', () => {
+      const result = appController.getHealth();
 
-      mockParisService.getOrderStats.mockResolvedValueOnce(mockStats);
-
-      // Act
-      const result = await appController.getStats();
-
-      // Assert
-      expect(result).toEqual(mockStats);
-      expect(mockParisService.getOrderStats).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        status: 'OK',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        timestamp: expect.any(String),
+      });
     });
   });
 });

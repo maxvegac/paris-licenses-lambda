@@ -6,17 +6,11 @@ import {
   GetCommand,
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
-
-export interface License {
-  licenseKey: string;
-  assignedAt: string;
-  status: 'available' | 'used';
-  orderNumber?: string;
-  assignedTo?: string; // customer email or name
-  productName?: string;
-  createdAt?: string;
-  expiresAt?: string;
-}
+import { EmailService } from '../email/email.service';
+import {
+  License,
+  LicenseReplacement,
+} from '../../interfaces/license.interface';
 
 @Injectable()
 export class LicensesService {
@@ -24,7 +18,7 @@ export class LicensesService {
   private readonly dynamoClient: DynamoDBDocumentClient;
   private readonly tableName: string;
 
-  constructor() {
+  constructor(private readonly emailService: EmailService) {
     this.tableName =
       process.env.LICENSES_TABLE_NAME || 'paris-licenses-licenses';
 
@@ -115,6 +109,7 @@ export class LicensesService {
   async assignLicenseToOrder(
     orderNumber: string,
     customerEmail: string,
+    customerName: string,
     productName?: string,
   ): Promise<string | null> {
     try {
@@ -150,6 +145,27 @@ export class LicensesService {
       this.logger.log(
         `License ${availableLicense.licenseKey} assigned to order ${orderNumber}`,
       );
+
+      // Send email to customer with the license
+      const emailSent = await this.emailService.sendLicenseEmail({
+        orderNumber,
+        customerName,
+        customerEmail,
+        productName: productName || availableLicense.productName || 'Licencia',
+        licenseKey: availableLicense.licenseKey,
+      });
+
+      if (!emailSent) {
+        this.logger.error(
+          `Failed to send email for order ${orderNumber}, but license was assigned`,
+        );
+        throw new Error('Failed to send license email to customer');
+      }
+
+      this.logger.log(
+        `Email sent successfully to ${customerEmail} for order ${orderNumber}`,
+      );
+
       return availableLicense.licenseKey;
     } catch (error) {
       const errorMessage =
@@ -392,6 +408,150 @@ export class LicensesService {
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error releasing license ${licenseKey}:`, errorMessage);
       throw new Error(`Failed to release license: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Replace a license for an order with a new one
+   */
+  async replaceLicenseForOrder(
+    orderNumber: string,
+    newLicenseKey: string,
+    reason: string,
+    replacedBy: string = 'admin',
+  ): Promise<{ message: string; success: boolean }> {
+    try {
+      // First, get the current license for this order
+      const currentLicense = await this.getLicenseByOrder(orderNumber);
+
+      if (!currentLicense) {
+        return {
+          message: 'No license found for this order',
+          success: false,
+        };
+      }
+
+      // Check if the new license is available
+      const newLicense = await this.getAvailableLicense(
+        currentLicense.productName,
+      );
+      if (!newLicense || newLicense.licenseKey !== newLicenseKey) {
+        return {
+          message: 'New license is not available or does not match the product',
+          success: false,
+        };
+      }
+
+      const now = new Date().toISOString();
+
+      // Create replacement history entry
+      const replacementEntry: LicenseReplacement = {
+        replacedAt: now,
+        previousLicenseKey: currentLicense.licenseKey,
+        reason: reason,
+        replacedBy: replacedBy,
+        orderNumber: orderNumber,
+      };
+
+      // Update the new license to be used for this order
+      const newLicenseUpdate = new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          licenseKey: newLicenseKey,
+          assignedAt: now,
+          status: 'used',
+          orderNumber: orderNumber,
+          assignedTo: currentLicense.assignedTo,
+          productName: currentLicense.productName,
+          createdAt: newLicense.createdAt,
+          expiresAt: newLicense.expiresAt,
+          replacementHistory: [replacementEntry], // Start with this replacement
+        },
+      });
+
+      // Mark the old license as available again
+      const oldLicenseUpdate = new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          licenseKey: currentLicense.licenseKey,
+          assignedAt: currentLicense.createdAt || now, // Reset to original creation
+          status: 'available',
+          productName: currentLicense.productName,
+          createdAt: currentLicense.createdAt,
+          expiresAt: currentLicense.expiresAt,
+          // Keep replacement history if it exists
+          replacementHistory: currentLicense.replacementHistory || [],
+        },
+      });
+
+      // Execute both updates
+      await Promise.all([
+        this.dynamoClient.send(newLicenseUpdate),
+        this.dynamoClient.send(oldLicenseUpdate),
+      ]);
+
+      // Send email to customer with the new license
+      const emailSent = await this.emailService.sendLicenseEmail({
+        orderNumber: orderNumber,
+        customerName: currentLicense.assignedTo || 'Cliente',
+        customerEmail: currentLicense.assignedTo || '',
+        productName: currentLicense.productName || 'Licencia',
+        licenseKey: newLicenseKey,
+      });
+
+      if (!emailSent) {
+        this.logger.warn(
+          `Failed to send replacement email for order ${orderNumber}`,
+        );
+      }
+
+      this.logger.log(
+        `License replaced for order ${orderNumber}: ${currentLicense.licenseKey} -> ${newLicenseKey} (Reason: ${reason})`,
+      );
+
+      return {
+        message: `License replaced successfully. New license: ${newLicenseKey}`,
+        success: true,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error replacing license for order ${orderNumber}:`,
+        errorMessage,
+      );
+      return {
+        message: `Failed to replace license: ${errorMessage}`,
+        success: false,
+      };
+    }
+  }
+
+  /**
+   * Get license by order number
+   */
+  async getLicenseByOrder(orderNumber: string): Promise<License | null> {
+    try {
+      const command = new QueryCommand({
+        TableName: this.tableName,
+        IndexName: 'OrderNumberIndex',
+        KeyConditionExpression: 'orderNumber = :orderNumber',
+        ExpressionAttributeValues: {
+          ':orderNumber': orderNumber,
+        },
+      });
+
+      const result = await this.dynamoClient.send(command);
+      const license = result.Items?.[0] as License;
+      return license || null;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting license for order ${orderNumber}:`,
+        errorMessage,
+      );
+      return null;
     }
   }
 }

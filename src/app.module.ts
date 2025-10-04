@@ -1,13 +1,23 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ParisService } from './paris.service';
-import { OrdersStateService } from './orders-state.service';
-import { LicensesService } from './licenses.service';
+import { OrdersModule } from './modules/orders/orders.module';
+import { LicensesModule } from './modules/licenses/licenses.module';
+import { StatsModule } from './modules/stats/stats.module';
+import { SyncModule } from './modules/sync/sync.module';
+import { EmailModule } from './modules/email/email.module';
+import { ParisModule } from './modules/paris/paris.module';
 
 @Module({
-  imports: [],
+  imports: [
+    EmailModule,
+    ParisModule,
+    OrdersModule,
+    LicensesModule,
+    StatsModule,
+    SyncModule,
+  ],
   controllers: [AppController],
-  providers: [AppService, ParisService, OrdersStateService, LicensesService],
+  providers: [AppService],
 })
 export class AppModule {}

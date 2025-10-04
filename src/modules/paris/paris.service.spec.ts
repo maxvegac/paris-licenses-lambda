@@ -5,8 +5,8 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ParisService } from './paris.service';
-import { OrdersStateService } from './orders-state.service';
-import { LicensesService } from './licenses.service';
+import { OrdersStateService } from '../orders/orders-state.service';
+import { LicensesService } from '../licenses/licenses.service';
 
 // Mock axios
 jest.mock('axios', () => ({

@@ -125,16 +125,22 @@ jobs:
         export TF_BACKEND_REGION="${{ env.AWS_REGION }}"
         export TF_BACKEND_DYNAMODB_TABLE="terraform-state-lock"
         
-        # Set Paris API credentials from GitHub Secrets
+        # Set all environment variables from GitHub Secrets
         export TF_VAR_paris_api_email="${{ secrets.PARIS_API_EMAIL }}"
         export TF_VAR_paris_api_password="${{ secrets.PARIS_API_PASSWORD }}"
+        export TF_VAR_smtp_user="${{ secrets.SMTP_USER }}"
+        export TF_VAR_smtp_password="${{ secrets.SMTP_PASSWORD }}"
+        export TF_VAR_smtp_from_email="${{ secrets.SMTP_FROM_EMAIL }}"
+        export TF_VAR_smtp_from_name="${{ secrets.SMTP_FROM_NAME }}"
+        export TF_VAR_dev_email_redirect="${{ secrets.DEV_EMAIL_REDIRECT }}"
+        export TF_VAR_dev_email="${{ secrets.DEV_EMAIL }}"
         
         echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
         echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
         echo "🔍 Debug: TF_BACKEND_KEY = $TF_BACKEND_KEY"
         echo "🔍 Debug: TF_BACKEND_REGION = $TF_BACKEND_REGION"
         echo "🔍 Debug: TF_BACKEND_DYNAMODB_TABLE = $TF_BACKEND_DYNAMODB_TABLE"
-        echo "🔍 Debug: Paris API credentials configured from GitHub Secrets"
+        echo "🔍 Debug: All environment variables configured from GitHub Secrets"
         
         ./deploy.sh dev ${{ env.PROJECT_NAME }} --ci
         
@@ -243,16 +249,22 @@ jobs:
         export TF_BACKEND_REGION="${{ env.AWS_REGION }}"
         export TF_BACKEND_DYNAMODB_TABLE="terraform-state-lock"
         
-        # Set Paris API credentials from GitHub Secrets
+        # Set all environment variables from GitHub Secrets
         export TF_VAR_paris_api_email="${{ secrets.PARIS_API_EMAIL }}"
         export TF_VAR_paris_api_password="${{ secrets.PARIS_API_PASSWORD }}"
+        export TF_VAR_smtp_user="${{ secrets.SMTP_USER }}"
+        export TF_VAR_smtp_password="${{ secrets.SMTP_PASSWORD }}"
+        export TF_VAR_smtp_from_email="${{ secrets.SMTP_FROM_EMAIL }}"
+        export TF_VAR_smtp_from_name="${{ secrets.SMTP_FROM_NAME }}"
+        export TF_VAR_dev_email_redirect="${{ secrets.DEV_EMAIL_REDIRECT }}"
+        export TF_VAR_dev_email="${{ secrets.DEV_EMAIL }}"
         
         echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
         echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
         echo "🔍 Debug: TF_BACKEND_KEY = $TF_BACKEND_KEY"
         echo "🔍 Debug: TF_BACKEND_REGION = $TF_BACKEND_REGION"
         echo "🔍 Debug: TF_BACKEND_DYNAMODB_TABLE = $TF_BACKEND_DYNAMODB_TABLE"
-        echo "🔍 Debug: Paris API credentials configured from GitHub Secrets"
+        echo "🔍 Debug: All environment variables configured from GitHub Secrets"
         
         ./deploy.sh prod ${{ env.PROJECT_NAME }} --ci
         

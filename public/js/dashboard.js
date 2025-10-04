@@ -2,6 +2,8 @@
 
 let stats = {};
 let failedOrders = [];
+let processedOrders = [];
+let currentView = 'failed'; // 'failed' or 'processed'
 
 // Load data on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -32,6 +34,8 @@ async function loadStats() {
 // Orders Functions
 async function loadFailedOrders() {
     try {
+        currentView = 'failed';
+        updateOrdersSectionTitle();
         const response = await fetch('/orders/failed');
         failedOrders = await response.json();
         displayFailedOrders();
@@ -39,6 +43,29 @@ async function loadFailedOrders() {
         console.error('Error loading failed orders:', error);
         document.getElementById('orders-container').innerHTML = 
             '<div class="alert alert-danger">Error cargando órdenes fallidas</div>';
+    }
+}
+
+async function loadProcessedOrders() {
+    try {
+        currentView = 'processed';
+        updateOrdersSectionTitle();
+        const response = await fetch('/orders/processed');
+        processedOrders = await response.json();
+        displayProcessedOrders();
+    } catch (error) {
+        console.error('Error loading processed orders:', error);
+        document.getElementById('orders-container').innerHTML = 
+            '<div class="alert alert-danger">Error cargando órdenes procesadas</div>';
+    }
+}
+
+function updateOrdersSectionTitle() {
+    const titleElement = document.getElementById('orders-section-title');
+    if (currentView === 'failed') {
+        titleElement.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Órdenes Fallidas';
+    } else {
+        titleElement.innerHTML = '<i class="bi bi-check-circle"></i> Órdenes Procesadas';
     }
 }
 
@@ -109,6 +136,40 @@ function displayFailedOrders() {
     failedOrders.forEach(order => {
         loadAvailableLicenses(order.orderNumber);
     });
+}
+
+function displayProcessedOrders() {
+    const container = document.getElementById('orders-container');
+    
+    if (processedOrders.length === 0) {
+        container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No hay órdenes procesadas</div>';
+        return;
+    }
+
+    container.innerHTML = processedOrders.map(order => 
+        '<div class="order-item fade-in">' +
+            '<div class="order-header">' +
+                '<span class="order-number">Orden #' + order.orderNumber + '</span>' +
+                '<span class="order-status status-processed">Procesada</span>' +
+            '</div>' +
+            '<div class="order-details">' +
+                '<strong>Cliente:</strong> ' + order.customerName + '<br>' +
+                '<strong>Email:</strong> ' + order.customerEmail + '<br>' +
+                '<strong>Producto:</strong> ' + order.productName + '<br>' +
+                '<strong>Licencia:</strong> <code>' + order.licenseKey + '</code><br>' +
+                '<strong>Fecha de Compra:</strong> ' + (order.purchaseDate !== 'Unknown' ? order.purchaseDate : 'No disponible') + '<br>' +
+                '<strong>Fecha de Procesamiento:</strong> ' + new Date(order.processedAt).toLocaleString() +
+            '</div>' +
+            '<div class="order-actions">' +
+                '<button class="btn btn-primary btn-sm me-2" onclick="resendOrderEmail(\'' + order.orderNumber + '\')">' +
+                    '<i class="bi bi-envelope"></i> Reenviar Email' +
+                '</button>' +
+                '<button class="btn btn-warning btn-sm" onclick="showReplaceLicenseForm(\'' + order.orderNumber + '\', \'' + order.licenseKey + '\')">' +
+                    '<i class="bi bi-arrow-repeat"></i> Reemplazar Licencia' +
+                '</button>' +
+            '</div>' +
+        '</div>'
+    ).join('');
 }
 
 async function loadAvailableLicenses(orderNumber) {
@@ -226,15 +287,175 @@ async function createAndAssignLicense(orderNumber) {
 
 async function syncOrders() {
     try {
-        const response = await fetch('/sync');
+        const response = await fetch('/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
         const result = await response.json();
         
         showAlert('Sincronización completada. ' + result.newOrders.length + ' nuevas órdenes procesadas.', 'success');
         loadStats();
-        loadFailedOrders();
+        if (currentView === 'failed') {
+            loadFailedOrders();
+        } else {
+            loadProcessedOrders();
+        }
     } catch (error) {
         console.error('Error syncing orders:', error);
         showAlert('Error en la sincronización', 'danger');
+    }
+}
+
+async function resendOrderEmail(orderNumber) {
+    if (!confirm('¿Estás seguro de que quieres reenviar el email para la orden ' + orderNumber + '?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/orders/' + orderNumber + '/resend-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert('✅ ' + result.message, 'success');
+        } else {
+            showAlert('❌ ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error resending email:', error);
+        showAlert('Error reenviando el email', 'danger');
+    }
+}
+
+function showReplaceLicenseForm(orderNumber, currentLicenseKey) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'replaceLicenseModal';
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reemplazar Licencia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Orden:</label>
+                        <input type="text" class="form-control" value="${orderNumber}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Licencia Actual:</label>
+                        <input type="text" class="form-control" value="${currentLicenseKey}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva Licencia:</label>
+                        <input type="text" class="form-control" id="newLicenseKey" placeholder="Ingresa la nueva licencia">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo del Reemplazo:</label>
+                        <select class="form-select" id="replacementReason">
+                            <option value="">Selecciona un motivo</option>
+                            <option value="Licencia defectuosa">Licencia defectuosa</option>
+                            <option value="Error en asignación">Error en asignación</option>
+                            <option value="Solicitud del cliente">Solicitud del cliente</option>
+                            <option value="Problema de activación">Problema de activación</option>
+                            <option value="Licencia expirada">Licencia expirada</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="customReasonDiv" style="display: none;">
+                        <label class="form-label">Motivo Personalizado:</label>
+                        <input type="text" class="form-control" id="customReason" placeholder="Describe el motivo">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning" onclick="replaceLicense('${orderNumber}')">Reemplazar Licencia</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+
+    // Show custom reason field when "Otro" is selected
+    document.getElementById('replacementReason').addEventListener('change', function() {
+        const customDiv = document.getElementById('customReasonDiv');
+        if (this.value === 'Otro') {
+            customDiv.style.display = 'block';
+        } else {
+            customDiv.style.display = 'none';
+        }
+    });
+
+    // Remove modal from DOM when hidden
+    modal.addEventListener('hidden.bs.modal', function() {
+        document.body.removeChild(modal);
+    });
+}
+
+async function replaceLicense(orderNumber) {
+    const newLicenseKey = document.getElementById('newLicenseKey').value.trim();
+    const reason = document.getElementById('replacementReason').value;
+    const customReason = document.getElementById('customReason').value.trim();
+
+    if (!newLicenseKey) {
+        showAlert('❌ Por favor ingresa la nueva licencia', 'danger');
+        return;
+    }
+
+    if (!reason) {
+        showAlert('❌ Por favor selecciona un motivo', 'danger');
+        return;
+    }
+
+    const finalReason = reason === 'Otro' ? customReason : reason;
+    if (!finalReason) {
+        showAlert('❌ Por favor ingresa el motivo personalizado', 'danger');
+        return;
+    }
+
+    if (!confirm(`¿Estás seguro de que quieres reemplazar la licencia para la orden ${orderNumber}?\n\nNueva licencia: ${newLicenseKey}\nMotivo: ${finalReason}`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/orders/' + orderNumber + '/replace-license', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                newLicenseKey: newLicenseKey,
+                reason: finalReason,
+                replacedBy: 'admin'
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showAlert('✅ ' + result.message, 'success');
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('replaceLicenseModal'));
+            modal.hide();
+            // Reload processed orders to show the new license
+            loadProcessedOrders();
+        } else {
+            showAlert('❌ ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error replacing license:', error);
+        showAlert('Error reemplazando la licencia', 'danger');
     }
 }
 

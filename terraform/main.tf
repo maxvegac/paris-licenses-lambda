@@ -125,11 +125,17 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      NODE_ENV           = var.environment
-      PARIS_API_EMAIL    = var.paris_api_email
-      PARIS_API_PASSWORD = var.paris_api_password
-      ORDERS_TABLE_NAME  = aws_dynamodb_table.orders.name
+      NODE_ENV            = var.environment
+      PARIS_API_EMAIL     = var.paris_api_email
+      PARIS_API_PASSWORD  = var.paris_api_password
+      ORDERS_TABLE_NAME   = aws_dynamodb_table.orders.name
       LICENSES_TABLE_NAME = aws_dynamodb_table.licenses.name
+      SMTP_USER           = var.smtp_user
+      SMTP_PASSWORD       = var.smtp_password
+      SMTP_FROM_EMAIL     = var.smtp_from_email
+      SMTP_FROM_NAME      = var.smtp_from_name
+      DEV_EMAIL_REDIRECT  = var.dev_email_redirect
+      DEV_EMAIL           = var.dev_email
     }
   }
 

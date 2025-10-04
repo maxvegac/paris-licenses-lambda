@@ -9,16 +9,9 @@ import {
   PutCommand,
   QueryCommand,
   GetCommand,
+  DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
-
-export interface OrderState {
-  orderNumber: string;
-  processedAt: string;
-  status: 'pending' | 'processed' | 'failed';
-  orderData?: any;
-  errorMessage?: string;
-  ttl?: number; // For automatic cleanup
-}
+import { OrderState } from '../../interfaces/order.interface';
 
 @Injectable()
 export class OrdersStateService {
@@ -50,6 +43,7 @@ export class OrdersStateService {
   async markOrderAsProcessed(
     orderNumber: string,
     orderData: any,
+    licenseKey?: string,
   ): Promise<void> {
     try {
       const now = new Date().toISOString();
@@ -61,6 +55,7 @@ export class OrdersStateService {
         processedAt: now,
         status: 'processed',
         orderData: orderData,
+        licenseKey: licenseKey,
         ttl,
       };
 
@@ -303,6 +298,75 @@ export class OrdersStateService {
         totalFailed: 0,
         failedOrders: [],
       };
+    }
+  }
+
+  /**
+   * Delete an order from the database
+   */
+  async deleteOrder(orderNumber: string): Promise<void> {
+    try {
+      const command = new DeleteCommand({
+        TableName: this.tableName,
+        Key: {
+          orderNumber: orderNumber,
+        },
+      });
+
+      await this.dynamoClient.send(command);
+      this.logger.log(`Order ${orderNumber} deleted successfully`);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error deleting order ${orderNumber}:`, errorMessage);
+      throw new Error(`Failed to delete order: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Delete orders with Unknown data (licenses without customer data)
+   */
+  async deleteUnknownOrders(): Promise<{
+    deleted: number;
+    errors: string[];
+  }> {
+    try {
+      const processedOrders = await this.getProcessedOrders();
+      let deleted = 0;
+      const errors: string[] = [];
+
+      for (const order of processedOrders) {
+        try {
+          const orderData = order.orderData || {};
+          const hasUnknownData =
+            orderData.customerName === 'Unknown' ||
+            orderData.customerEmail === 'Unknown' ||
+            orderData.productName === 'Unknown';
+
+          if (hasUnknownData) {
+            await this.deleteOrder(order.orderNumber);
+            deleted++;
+            this.logger.log(
+              `Deleted order ${order.orderNumber} with Unknown data`,
+            );
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${order.orderNumber}: ${errorMessage}`);
+          this.logger.error(
+            `Error deleting order ${order.orderNumber}:`,
+            errorMessage,
+          );
+        }
+      }
+
+      return { deleted, errors };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error('Error deleting unknown orders:', errorMessage);
+      throw new Error(`Failed to delete unknown orders: ${errorMessage}`);
     }
   }
 

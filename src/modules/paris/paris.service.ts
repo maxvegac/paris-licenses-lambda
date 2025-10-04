@@ -4,8 +4,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import * as XLSX from 'xlsx';
-import { OrdersStateService } from './orders-state.service';
-import { LicensesService } from './licenses.service';
+import { OrdersStateService } from '../orders/orders-state.service';
+import { LicensesService } from '../licenses/licenses.service';
+import { ParisOrder } from '../../interfaces/order.interface';
 
 export interface ParisLoginResponse {
   expiresIn: number;
@@ -52,36 +53,6 @@ export interface ParisLoginResponse {
     iss: string;
   };
   accessToken: string;
-}
-
-export interface ParisOrder {
-  orderNumber: string;
-  returnNumber: string;
-  customerName: string;
-  documentNumber: string;
-  customerEmail: string;
-  customerPhone: string;
-  purchaseDate: string;
-  courierDeliveryDate: string;
-  promisedDeliveryDate: string;
-  productName: string;
-  price: string;
-  customerPaymentPrice: string;
-  shippingCost: string;
-  commune: string;
-  shippingAddress: string;
-  region: string;
-  marketplaceSku: string;
-  sellerSku: string;
-  status: string;
-  document: string;
-  businessName: string;
-  rut: string;
-  businessType: string;
-  billingAddress: string;
-  fulfillment: string;
-  opl: string;
-  assignedLicense?: string; // License key assigned to this order
 }
 
 @Injectable()
@@ -288,6 +259,129 @@ export class ParisService {
   /**
    * Gets new orders (not previously processed) and marks them as processed
    */
+  async syncOrders(): Promise<{
+    newOrders: ParisOrder[];
+    stats: {
+      totalProcessed: number;
+      totalFailed: number;
+      lastProcessed?: string;
+      failedOrders?: Array<{
+        orderNumber: string;
+        errorMessage: string;
+        processedAt: string;
+      }>;
+    };
+  }> {
+    try {
+      this.logger.log('Syncing orders from Paris API...');
+
+      // Get all orders from Paris API
+      const allOrders = await this.getOrders();
+
+      // Filter out already processed orders
+      const newOrders =
+        await this.ordersStateService.filterNewOrders(allOrders);
+
+      // Process each new order: assign license and mark as processed
+      const processedOrders: ParisOrder[] = [];
+
+      for (const order of newOrders) {
+        try {
+          // Try to assign a license to the order
+          let assignedLicense: string | null = null;
+          let licenseError: string | null = null;
+
+          try {
+            assignedLicense = await this.licensesService.assignLicenseToOrder(
+              order.orderNumber,
+              order.customerEmail,
+              order.customerName,
+              order.productName,
+            );
+          } catch (error) {
+            licenseError =
+              error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error(
+              `Failed to assign license to order ${order.orderNumber}:`,
+              licenseError,
+            );
+          }
+
+          if (assignedLicense) {
+            const orderWithLicense: ParisOrder = {
+              ...order,
+              assignedLicense: assignedLicense,
+            } as ParisOrder;
+
+            // Clean undefined values from the order data, but keep essential fields
+            const cleanedOrderData = Object.fromEntries(
+              Object.entries(orderWithLicense).filter(
+                ([, value]) =>
+                  value !== undefined && value !== null && value !== '',
+              ),
+            );
+
+            // Ensure essential fields are always present
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).customerName =
+              order.customerName || 'Unknown';
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).customerEmail =
+              order.customerEmail || 'Unknown';
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).productName =
+              order.productName || 'Unknown';
+
+            // Mark order as processed
+            await this.ordersStateService.markOrderAsProcessed(
+              order.orderNumber,
+              cleanedOrderData,
+              assignedLicense, // Pass assignedLicense
+            );
+
+            processedOrders.push(orderWithLicense);
+          } else {
+            // Mark order as failed if no license was assigned
+            await this.ordersStateService.markOrderAsFailed(
+              order.orderNumber,
+              licenseError || 'No license available',
+            );
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Error processing order ${order.orderNumber}:`,
+            errorMessage,
+          );
+
+          // Mark order as failed
+          await this.ordersStateService.markOrderAsFailed(
+            order.orderNumber,
+            errorMessage,
+          );
+        }
+      }
+
+      // Get updated stats
+      const stats = await this.ordersStateService.getOrderStats();
+
+      this.logger.log(
+        `Sync completed: ${processedOrders.length} orders processed, ${stats.totalFailed} total failed`,
+      );
+
+      return {
+        newOrders: processedOrders,
+        stats,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error('Error syncing orders:', errorMessage);
+      throw new Error(`Failed to sync orders: ${errorMessage}`);
+    }
+  }
+
   async getNewOrders(): Promise<ParisOrder[]> {
     try {
       this.logger.log('Getting new orders from Paris API...');
@@ -312,6 +406,7 @@ export class ParisService {
             assignedLicense = await this.licensesService.assignLicenseToOrder(
               order.orderNumber,
               order.customerEmail,
+              order.customerName,
               order.productName,
             );
 
@@ -341,17 +436,30 @@ export class ParisService {
               assignedLicense: assignedLicense,
             } as ParisOrder;
 
-            // Clean undefined values from the order data
+            // Clean undefined values from the order data, but keep essential fields
             const cleanedOrderData = Object.fromEntries(
               Object.entries(orderWithLicense).filter(
-                ([, value]) => value !== undefined,
+                ([, value]) =>
+                  value !== undefined && value !== null && value !== '',
               ),
             );
+
+            // Ensure essential fields are always present
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).customerName =
+              order.customerName || 'Unknown';
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).customerEmail =
+              order.customerEmail || 'Unknown';
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            (cleanedOrderData as any).productName =
+              order.productName || 'Unknown';
 
             // Mark order as processed
             await this.ordersStateService.markOrderAsProcessed(
               order.orderNumber,
               cleanedOrderData,
+              assignedLicense,
             );
 
             processedOrders.push(orderWithLicense);
@@ -431,5 +539,40 @@ export class ParisService {
       errorMessage: order.errorMessage || 'Unknown error',
       processedAt: order.processedAt,
     }));
+  }
+
+  async getProcessedOrders(): Promise<
+    Array<{
+      orderNumber: string;
+      customerName: string;
+      customerEmail: string;
+      productName: string;
+      licenseKey: string;
+      purchaseDate: string;
+      processedAt: string;
+    }>
+  > {
+    const processedOrders = await this.ordersStateService.getProcessedOrders();
+
+    return processedOrders.map((order) => {
+      // Use the orderData that was saved when the order was processed
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const orderData = order.orderData || {};
+
+      return {
+        orderNumber: order.orderNumber,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        customerName: orderData.customerName || 'Unknown',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        customerEmail: orderData.customerEmail || 'Unknown',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        productName: orderData.productName || 'Unknown',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        licenseKey: order.licenseKey || orderData.assignedLicense || 'Unknown',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        purchaseDate: orderData.purchaseDate || 'Unknown',
+        processedAt: order.processedAt,
+      };
+    });
   }
 }

@@ -9,3 +9,17 @@ environment  = "dev"
 lambda_timeout     = 30
 lambda_memory_size = 512
 
+# Paris API Configuration
+paris_api_email    = "your_email@example.com"
+paris_api_password = "your_password_here"
+
+# SMTP Configuration (Gmail)
+smtp_user        = "your_gmail@gmail.com"
+smtp_password    = "your_app_password_here"
+smtp_from_email  = "noreply@tudominio.com"
+smtp_from_name   = "Equipo IVI"
+
+# Development Email Settings
+dev_email_redirect = "false"
+dev_email          = "your_dev_email@gmail.com"
+
