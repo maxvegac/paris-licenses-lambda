@@ -87,7 +87,7 @@ resource "aws_lambda_function" "api" {
   function_name = "${var.project_name}-api"
   s3_bucket     = aws_s3_bucket.lambda_bucket.id
   s3_key        = aws_s3_object.lambda_code.key
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs22.x"
   handler       = "dist/lambda.handler"
   role          = aws_iam_role.lambda_role.arn
   timeout       = var.lambda_timeout
