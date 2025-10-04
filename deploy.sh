@@ -54,6 +54,14 @@ else
     echo "⚠️  Warning: public/ directory not found"
 fi
 
+# Copy email templates
+if [ -d "templates" ]; then
+    echo "📧 Copying email templates from templates/..."
+    cp -r templates lambda-build/
+else
+    echo "⚠️  Warning: templates/ directory not found"
+fi
+
 # Install only production dependencies
 echo "📦 Installing production dependencies..."
 cd lambda-build

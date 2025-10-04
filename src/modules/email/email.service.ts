@@ -82,12 +82,11 @@ export class EmailService {
   private generateEmailHTML(emailData: EmailData): string {
     try {
       // Read the template file
-      const templatePath = path.join(
-        process.cwd(),
-        'templates',
-        'email',
-        'license-delivery.html',
-      );
+      // In Lambda, files are in /var/task/, in local development they're in the project root
+      const templatePath = process.env.AWS_LAMBDA_FUNCTION_NAME
+        ? path.join(__dirname, '..', '..', '..', 'templates', 'email', 'license-delivery.html')  // Lambda: /var/task/templates/email/license-delivery.html
+        : path.join(process.cwd(), 'templates', 'email', 'license-delivery.html');  // Local: project/templates/email/license-delivery.html
+      
       const templateSource = fs.readFileSync(templatePath, 'utf8');
 
       // Compile the template
