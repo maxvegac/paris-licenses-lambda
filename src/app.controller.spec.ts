@@ -28,7 +28,7 @@ describe('AppController', () => {
   beforeEach(async () => {
     // Clear all mocks before each test
     jest.clearAllMocks();
-    
+
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
       providers: [
@@ -89,7 +89,7 @@ describe('AppController', () => {
         totalFailed: 1,
         lastProcessed: '2025-01-15T10:30:00Z',
       };
-      
+
       mockParisService.getNewOrders.mockResolvedValueOnce(mockNewOrders);
       mockParisService.getOrderStats.mockResolvedValueOnce(mockStats);
 
@@ -114,7 +114,7 @@ describe('AppController', () => {
         totalFailed: 2,
         lastProcessed: '2025-01-15T10:30:00Z',
       };
-      
+
       mockParisService.getOrderStats.mockResolvedValueOnce(mockStats);
 
       // Act

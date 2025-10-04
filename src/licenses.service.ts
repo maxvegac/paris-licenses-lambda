@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  QueryCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 export interface License {
   licenseKey: string;
@@ -20,21 +25,28 @@ export class LicensesService {
   private readonly tableName: string;
 
   constructor() {
-    this.tableName = process.env.LICENSES_TABLE_NAME || 'paris-licenses-licenses';
-    
+    this.tableName =
+      process.env.LICENSES_TABLE_NAME || 'paris-licenses-licenses';
+
     const client = new DynamoDBClient({
       region: process.env.AWS_REGION || 'us-east-1',
     });
-    
+
     this.dynamoClient = DynamoDBDocumentClient.from(client);
-    
-    this.logger.log(`LicensesService initialized with table: ${this.tableName}`);
+
+    this.logger.log(
+      `LicensesService initialized with table: ${this.tableName}`,
+    );
   }
 
   /**
    * Add a new license to the pool
    */
-  async addLicense(licenseKey: string, productName?: string, expiresAt?: string): Promise<void> {
+  async addLicense(
+    licenseKey: string,
+    productName?: string,
+    expiresAt?: string,
+  ): Promise<void> {
     try {
       const now = new Date().toISOString();
 
@@ -53,10 +65,11 @@ export class LicensesService {
       });
 
       await this.dynamoClient.send(command);
-      
+
       this.logger.log(`License ${licenseKey} added to pool`);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error adding license ${licenseKey}:`, errorMessage);
       throw new Error(`Failed to add license: ${errorMessage}`);
     }
@@ -65,21 +78,28 @@ export class LicensesService {
   /**
    * Add multiple licenses to the pool
    */
-  async addLicenses(licenses: Array<{
-    licenseKey: string;
-    productName?: string;
-    expiresAt?: string;
-  }>): Promise<void> {
+  async addLicenses(
+    licenses: Array<{
+      licenseKey: string;
+      productName?: string;
+      expiresAt?: string;
+    }>,
+  ): Promise<void> {
     try {
-      const promises = licenses.map(license => 
-        this.addLicense(license.licenseKey, license.productName, license.expiresAt)
+      const promises = licenses.map((license) =>
+        this.addLicense(
+          license.licenseKey,
+          license.productName,
+          license.expiresAt,
+        ),
       );
-      
+
       await Promise.all(promises);
-      
+
       this.logger.log(`Added ${licenses.length} licenses to pool`);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error adding multiple licenses:', errorMessage);
       throw new Error(`Failed to add licenses: ${errorMessage}`);
     }
@@ -88,19 +108,25 @@ export class LicensesService {
   /**
    * Get an available license and assign it to an order
    */
-  async assignLicenseToOrder(orderNumber: string, customerEmail: string, productName?: string): Promise<string | null> {
+  async assignLicenseToOrder(
+    orderNumber: string,
+    customerEmail: string,
+    productName?: string,
+  ): Promise<string | null> {
     try {
       // First, try to find an available license
       const availableLicense = await this.getAvailableLicense(productName);
-      
+
       if (!availableLicense) {
-        this.logger.warn(`No available licenses found for order ${orderNumber}`);
+        this.logger.warn(
+          `No available licenses found for order ${orderNumber}`,
+        );
         return null;
       }
 
       // Mark the license as used and assign it to the order
       const now = new Date().toISOString();
-      
+
       const command = new PutCommand({
         TableName: this.tableName,
         Item: {
@@ -116,12 +142,18 @@ export class LicensesService {
       });
 
       await this.dynamoClient.send(command);
-      
-      this.logger.log(`License ${availableLicense.licenseKey} assigned to order ${orderNumber}`);
+
+      this.logger.log(
+        `License ${availableLicense.licenseKey} assigned to order ${orderNumber}`,
+      );
       return availableLicense.licenseKey;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error assigning license to order ${orderNumber}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error assigning license to order ${orderNumber}:`,
+        errorMessage,
+      );
       throw new Error(`Failed to assign license: ${errorMessage}`);
     }
   }
@@ -129,7 +161,9 @@ export class LicensesService {
   /**
    * Get an available license from the pool
    */
-  private async getAvailableLicense(productName?: string): Promise<License | null> {
+  private async getAvailableLicense(
+    productName?: string,
+  ): Promise<License | null> {
     try {
       const command = new QueryCommand({
         TableName: this.tableName,
@@ -145,13 +179,13 @@ export class LicensesService {
       });
 
       const result = await this.dynamoClient.send(command);
-      
+
       if (!result.Items || result.Items.length === 0) {
         return null;
       }
 
       const license = result.Items[0] as License;
-      
+
       // If productName is specified, filter by it
       if (productName && license.productName !== productName) {
         return null;
@@ -159,7 +193,8 @@ export class LicensesService {
 
       return license;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting available license:', errorMessage);
       return null;
     }
@@ -187,12 +222,15 @@ export class LicensesService {
 
       // Filter by product name if specified
       if (productName) {
-        licenses = licenses.filter(license => license.productName === productName);
+        licenses = licenses.filter(
+          (license) => license.productName === productName,
+        );
       }
 
       return licenses;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting available licenses:', errorMessage);
       return [];
     }
@@ -218,7 +256,8 @@ export class LicensesService {
       const result = await this.dynamoClient.send(command);
       return (result.Items as License[]) || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting used licenses:', errorMessage);
       return [];
     }
@@ -241,8 +280,12 @@ export class LicensesService {
       const result = await this.dynamoClient.send(command);
       return (result.Items as License[]) || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error getting licenses for order ${orderNumber}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error getting licenses for order ${orderNumber}:`,
+        errorMessage,
+      );
       return [];
     }
   }
@@ -253,7 +296,9 @@ export class LicensesService {
   async getLicenseStats(): Promise<{
     totalAvailable: number;
     totalUsed: number;
-    totalByProduct: { [productName: string]: { available: number; used: number } };
+    totalByProduct: {
+      [productName: string]: { available: number; used: number };
+    };
   }> {
     try {
       const [availableLicenses, usedLicenses] = await Promise.all([
@@ -261,10 +306,12 @@ export class LicensesService {
         this.getUsedLicenses(),
       ]);
 
-      const totalByProduct: { [productName: string]: { available: number; used: number } } = {};
+      const totalByProduct: {
+        [productName: string]: { available: number; used: number };
+      } = {};
 
       // Count by product
-      availableLicenses.forEach(license => {
+      availableLicenses.forEach((license) => {
         const product = license.productName || 'Unknown';
         if (!totalByProduct[product]) {
           totalByProduct[product] = { available: 0, used: 0 };
@@ -272,7 +319,7 @@ export class LicensesService {
         totalByProduct[product].available++;
       });
 
-      usedLicenses.forEach(license => {
+      usedLicenses.forEach((license) => {
         const product = license.productName || 'Unknown';
         if (!totalByProduct[product]) {
           totalByProduct[product] = { available: 0, used: 0 };
@@ -286,7 +333,8 @@ export class LicensesService {
         totalByProduct,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting license stats:', errorMessage);
       return {
         totalAvailable: 0,
@@ -311,7 +359,7 @@ export class LicensesService {
       });
 
       const result = await this.dynamoClient.send(command);
-      
+
       if (!result.Item) {
         throw new Error(`License ${licenseKey} not found`);
       }
@@ -333,10 +381,11 @@ export class LicensesService {
       });
 
       await this.dynamoClient.send(releaseCommand);
-      
+
       this.logger.log(`License ${licenseKey} released and made available`);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error releasing license ${licenseKey}:`, errorMessage);
       throw new Error(`Failed to release license: ${errorMessage}`);
     }

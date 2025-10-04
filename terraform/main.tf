@@ -166,7 +166,6 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.sync_schedule.arn
 }
-}
 
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "lambda_logs" {
@@ -217,9 +216,10 @@ resource "aws_dynamodb_table" "orders" {
 
   # Global Secondary Index for querying by status
   global_secondary_index {
-    name     = "StatusIndex"
-    hash_key = "status"
-    range_key = "processedAt"
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "processedAt"
+    projection_type = "ALL"
   }
 
   # TTL for automatic cleanup of old records (optional)
@@ -256,18 +256,25 @@ resource "aws_dynamodb_table" "licenses" {
     type = "S"
   }
 
+  attribute {
+    name = "orderNumber"
+    type = "S"
+  }
+
   # Global Secondary Index for querying by status
   global_secondary_index {
-    name     = "StatusIndex"
-    hash_key = "status"
-    range_key = "assignedAt"
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "assignedAt"
+    projection_type = "ALL"
   }
 
   # Global Secondary Index for querying by order number
   global_secondary_index {
-    name     = "OrderIndex"
-    hash_key = "orderNumber"
-    range_key = "assignedAt"
+    name            = "OrderIndex"
+    hash_key        = "orderNumber"
+    range_key       = "assignedAt"
+    projection_type = "ALL"
   }
 
   tags = {

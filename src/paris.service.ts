@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import * as XLSX from 'xlsx';
@@ -288,16 +291,17 @@ export class ParisService {
   async getNewOrders(): Promise<ParisOrder[]> {
     try {
       this.logger.log('Getting new orders from Paris API...');
-      
+
       // Get all orders from Paris API
       const allOrders = await this.getOrders();
-      
+
       // Filter out already processed orders
-      const newOrders = await this.ordersStateService.filterNewOrders(allOrders);
-      
+      const newOrders =
+        await this.ordersStateService.filterNewOrders(allOrders);
+
       // Process each new order: assign license and mark as processed
       const processedOrders: ParisOrder[] = [];
-      
+
       for (const order of newOrders) {
         try {
           // Try to assign a license to the order
@@ -306,17 +310,27 @@ export class ParisService {
             assignedLicense = await this.licensesService.assignLicenseToOrder(
               order.orderNumber,
               order.customerEmail,
-              order.productName
+              order.productName,
             );
-            
+
             if (assignedLicense) {
-              this.logger.log(`License ${assignedLicense} assigned to order ${order.orderNumber}`);
+              this.logger.log(
+                `License ${assignedLicense} assigned to order ${order.orderNumber}`,
+              );
             } else {
-              this.logger.warn(`No available license for order ${order.orderNumber}`);
+              this.logger.warn(
+                `No available license for order ${order.orderNumber}`,
+              );
             }
           } catch (licenseError) {
-            const licenseErrorMessage = licenseError instanceof Error ? licenseError.message : 'Unknown error';
-            this.logger.error(`Failed to assign license to order ${order.orderNumber}:`, licenseErrorMessage);
+            const licenseErrorMessage =
+              licenseError instanceof Error
+                ? licenseError.message
+                : 'Unknown error';
+            this.logger.error(
+              `Failed to assign license to order ${order.orderNumber}:`,
+              licenseErrorMessage,
+            );
             // Continue processing even if license assignment fails
           }
 
@@ -324,31 +338,47 @@ export class ParisService {
           const orderWithLicense: ParisOrder = {
             ...order,
             assignedLicense: assignedLicense || undefined,
-          };
+          } as ParisOrder;
 
           // Mark order as processed
-          await this.ordersStateService.markOrderAsProcessed(order.orderNumber, orderWithLicense);
-          
+          await this.ordersStateService.markOrderAsProcessed(
+            order.orderNumber,
+            orderWithLicense,
+          );
+
           processedOrders.push(orderWithLicense);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`Failed to process order ${order.orderNumber}:`, errorMessage);
-          
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to process order ${order.orderNumber}:`,
+            errorMessage,
+          );
+
           // Mark order as failed
           try {
-            await this.ordersStateService.markOrderAsFailed(order.orderNumber, errorMessage);
+            await this.ordersStateService.markOrderAsFailed(
+              order.orderNumber,
+              errorMessage,
+            );
           } catch (markError) {
-            this.logger.error(`Failed to mark order ${order.orderNumber} as failed:`, markError);
+            this.logger.error(
+              `Failed to mark order ${order.orderNumber} as failed:`,
+              markError,
+            );
           }
-          
+
           // Continue processing other orders even if one fails
         }
       }
-      
-      this.logger.log(`Retrieved ${processedOrders.length} new orders out of ${allOrders.length} total`);
+
+      this.logger.log(
+        `Retrieved ${processedOrders.length} new orders out of ${allOrders.length} total`,
+      );
       return processedOrders;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting new orders:', errorMessage);
       throw new Error(`Error getting new orders: ${errorMessage}`);
     }

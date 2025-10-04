@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -28,26 +31,41 @@ async function createNestServer(): Promise<serverless.Handler> {
   return cachedServer;
 }
 
+interface EventBridgeEvent {
+  source: string;
+  'detail-type': string;
+  detail?: any;
+}
+
 export const handler: Handler<
-  APIGatewayProxyEvent | any,
+  APIGatewayProxyEvent | EventBridgeEvent,
   APIGatewayProxyResult
-> = async (event: APIGatewayProxyEvent | any, context: Context) => {
+> = async (
+  event: APIGatewayProxyEvent | EventBridgeEvent,
+  context: Context,
+) => {
   // Check if this is an EventBridge invocation
-  if (event.source === 'aws.events' && event['detail-type'] === 'Scheduled Event') {
+  if (
+    'source' in event &&
+    event.source === 'aws.events' &&
+    event['detail-type'] === 'Scheduled Event'
+  ) {
     console.log('🔄 EventBridge triggered sync - processing orders...');
-    
+
     try {
       // Create NestJS app directly for EventBridge calls
       const expressApp = express();
       const adapter = new ExpressAdapter(expressApp);
       const app = await NestFactory.create(AppModule, adapter);
       await app.init();
-      
+
       const appController = app.get(AppController);
       const result = await appController.syncOrders();
-      
-      console.log(`✅ Sync completed: ${result.newOrders.length} new orders, ${result.stats.totalProcessed} total processed`);
-      
+
+      console.log(
+        `✅ Sync completed: ${result.newOrders.length} new orders, ${result.stats.totalProcessed} total processed`,
+      );
+
       return {
         statusCode: 200,
         body: JSON.stringify({
@@ -68,7 +86,7 @@ export const handler: Handler<
       };
     }
   }
-  
+
   // Regular API Gateway request
   const server = await createNestServer();
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument

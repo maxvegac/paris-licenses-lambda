@@ -1,6 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+
 import { Injectable, Logger } from '@nestjs/common';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  QueryCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 export interface OrderState {
   orderNumber: string;
@@ -19,29 +28,34 @@ export class OrdersStateService {
 
   constructor() {
     this.tableName = process.env.ORDERS_TABLE_NAME || 'paris-licenses-orders';
-    
+
     const client = new DynamoDBClient({
       region: process.env.AWS_REGION || 'us-east-1',
     });
-    
+
     this.dynamoClient = DynamoDBDocumentClient.from(client);
-    
-    this.logger.log(`OrdersStateService initialized with table: ${this.tableName}`);
+
+    this.logger.log(
+      `OrdersStateService initialized with table: ${this.tableName}`,
+    );
   }
 
   /**
    * Mark an order as processed
    */
-  async markOrderAsProcessed(orderNumber: string, orderData: any): Promise<void> {
+  async markOrderAsProcessed(
+    orderNumber: string,
+    orderData: any,
+  ): Promise<void> {
     try {
       const now = new Date().toISOString();
-      const ttl = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days from now
+      const ttl = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days from now
 
       const orderState: OrderState = {
         orderNumber,
         processedAt: now,
         status: 'processed',
-        orderData,
+        orderData: orderData,
         ttl,
       };
 
@@ -51,11 +65,15 @@ export class OrdersStateService {
       });
 
       await this.dynamoClient.send(command);
-      
+
       this.logger.log(`Order ${orderNumber} marked as processed`);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error marking order ${orderNumber} as processed:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error marking order ${orderNumber} as processed:`,
+        errorMessage,
+      );
       throw new Error(`Failed to mark order as processed: ${errorMessage}`);
     }
   }
@@ -63,10 +81,13 @@ export class OrdersStateService {
   /**
    * Mark an order as failed
    */
-  async markOrderAsFailed(orderNumber: string, errorMessage: string): Promise<void> {
+  async markOrderAsFailed(
+    orderNumber: string,
+    errorMessage: string,
+  ): Promise<void> {
     try {
       const now = new Date().toISOString();
-      const ttl = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 days from now
+      const ttl = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days from now
 
       const orderState: OrderState = {
         orderNumber,
@@ -82,11 +103,14 @@ export class OrdersStateService {
       });
 
       await this.dynamoClient.send(command);
-      
+
       this.logger.log(`Order ${orderNumber} marked as failed: ${errorMessage}`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error marking order ${orderNumber} as failed:`, errorMsg);
+      this.logger.error(
+        `Error marking order ${orderNumber} as failed:`,
+        errorMsg,
+      );
       throw new Error(`Failed to mark order as failed: ${errorMsg}`);
     }
   }
@@ -107,8 +131,12 @@ export class OrdersStateService {
       const result = await this.dynamoClient.send(command);
       return !!result.Item;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error checking if order ${orderNumber} is processed:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error checking if order ${orderNumber} is processed:`,
+        errorMessage,
+      );
       return false; // Assume not processed if we can't check
     }
   }
@@ -133,7 +161,8 @@ export class OrdersStateService {
       const result = await this.dynamoClient.send(command);
       return (result.Items as OrderState[]) || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting processed orders:', errorMessage);
       return [];
     }
@@ -159,7 +188,8 @@ export class OrdersStateService {
       const result = await this.dynamoClient.send(command);
       return (result.Items as OrderState[]) || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting failed orders:', errorMessage);
       return [];
     }
@@ -180,8 +210,12 @@ export class OrdersStateService {
       ]);
 
       const lastProcessed = processedOrders
-        .sort((a, b) => new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime())
-        .map(order => order.processedAt)[0];
+        .sort(
+          (a, b) =>
+            new Date(b.processedAt).getTime() -
+            new Date(a.processedAt).getTime(),
+        )
+        .map((order) => order.processedAt)[0];
 
       return {
         totalProcessed: processedOrders.length,
@@ -189,7 +223,8 @@ export class OrdersStateService {
         lastProcessed,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error getting order stats:', errorMessage);
       return {
         totalProcessed: 0,
@@ -204,18 +239,21 @@ export class OrdersStateService {
   async filterNewOrders(orders: any[]): Promise<any[]> {
     try {
       const newOrders: any[] = [];
-      
+
       for (const order of orders) {
         const isProcessed = await this.isOrderProcessed(order.orderNumber);
         if (!isProcessed) {
           newOrders.push(order);
         }
       }
-      
-      this.logger.log(`Filtered ${orders.length} orders, ${newOrders.length} are new`);
+
+      this.logger.log(
+        `Filtered ${orders.length} orders, ${newOrders.length} are new`,
+      );
       return newOrders;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Error filtering new orders:', errorMessage);
       return orders; // Return all orders if filtering fails
     }

@@ -32,7 +32,7 @@ export class AppController {
   }> {
     const newOrders = await this.parisService.getNewOrders();
     const stats = await this.parisService.getOrderStats();
-    
+
     return {
       newOrders,
       stats,
@@ -51,36 +51,44 @@ export class AppController {
   // License Management Endpoints
 
   @Post('licenses')
-  async addLicense(@Body() body: {
-    licenseKey: string;
-    productName?: string;
-    expiresAt?: string;
-  }): Promise<{ message: string }> {
+  async addLicense(
+    @Body()
+    body: {
+      licenseKey: string;
+      productName?: string;
+      expiresAt?: string;
+    },
+  ): Promise<{ message: string }> {
     await this.licensesService.addLicense(
       body.licenseKey,
       body.productName,
-      body.expiresAt
+      body.expiresAt,
     );
     return { message: 'License added successfully' };
   }
 
   @Post('licenses/bulk')
-  async addLicenses(@Body() body: {
-    licenses: Array<{
-      licenseKey: string;
-      productName?: string;
-      expiresAt?: string;
-    }>;
-  }): Promise<{ message: string; count: number }> {
+  async addLicenses(
+    @Body()
+    body: {
+      licenses: Array<{
+        licenseKey: string;
+        productName?: string;
+        expiresAt?: string;
+      }>;
+    },
+  ): Promise<{ message: string; count: number }> {
     await this.licensesService.addLicenses(body.licenses);
-    return { 
+    return {
       message: 'Licenses added successfully',
-      count: body.licenses.length
+      count: body.licenses.length,
     };
   }
 
   @Get('licenses/available')
-  async getAvailableLicenses(@Body() body?: { productName?: string }): Promise<any[]> {
+  async getAvailableLicenses(
+    @Body() body?: { productName?: string },
+  ): Promise<any[]> {
     return await this.licensesService.getAvailableLicenses(body?.productName);
   }
 
@@ -93,7 +101,9 @@ export class AppController {
   async getLicenseStats(): Promise<{
     totalAvailable: number;
     totalUsed: number;
-    totalByProduct: { [productName: string]: { available: number; used: number } };
+    totalByProduct: {
+      [productName: string]: { available: number; used: number };
+    };
   }> {
     return await this.licensesService.getLicenseStats();
   }
@@ -104,7 +114,9 @@ export class AppController {
   }
 
   @Post('licenses/release')
-  async releaseLicense(@Body() body: { licenseKey: string }): Promise<{ message: string }> {
+  async releaseLicense(
+    @Body() body: { licenseKey: string },
+  ): Promise<{ message: string }> {
     await this.licensesService.releaseLicense(body.licenseKey);
     return { message: 'License released successfully' };
   }
