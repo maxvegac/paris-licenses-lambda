@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paris Licenses Dashboard</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/css/dashboard.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-building"></i> Paris Licenses Dashboard
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">
+                            <i class="bi bi-check-circle"></i> Órdenes Procesadas
+                        </h5>
+                        <h2 class="text-success" id="processed-count">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">
+                            <i class="bi bi-x-circle"></i> Órdenes Fallidas
+                        </h5>
+                        <h2 class="text-danger" id="failed-count">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">
+                            <i class="bi bi-key"></i> Licencias Disponibles
+                        </h5>
+                        <h2 class="text-info" id="available-count">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Acciones</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary me-2" onclick="syncOrders()">
+                            <i class="bi bi-arrow-clockwise"></i> Sincronizar Órdenes
+                        </button>
+                        <button class="btn btn-success me-2" onclick="loadFailedOrders()">
+                            <i class="bi bi-list-check"></i> Ver Órdenes Fallidas
+                        </button>
+                        <button class="btn btn-info me-2" onclick="loadStats()">
+                            <i class="bi bi-graph-up"></i> Actualizar Estadísticas
+                        </button>
+                        <button class="btn btn-warning" onclick="toggleLicenseManager()">
+                            <i class="bi bi-key"></i> Gestionar Licencias
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- License Manager -->
+        <div class="row mb-4" id="license-manager" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-key"></i> Gestión de Licencias</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Add Single License -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Agregar Licencia Individual</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="single-license-key" class="form-label">Clave de Licencia</label>
+                                            <input type="text" class="form-control" id="single-license-key" 
+                                                   placeholder="Ej: ABCDE-12345-FGHIJ-67890-KLMNO">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="single-license-product" class="form-label">Producto (opcional)</label>
+                                            <input type="text" class="form-control" id="single-license-product" 
+                                                   placeholder="Ej: Windows 10 Pro">
+                                        </div>
+                                        <button class="btn btn-success" onclick="addSingleLicense()">
+                                            <i class="bi bi-plus"></i> Agregar Licencia
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add Bulk Licenses -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-collection"></i> Agregar Licencias en Masa</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="bulk-licenses" class="form-label">Licencias (una por línea)</label>
+                                            <textarea class="form-control" id="bulk-licenses" rows="6" 
+                                                      placeholder="ABCDE-12345-FGHIJ-67890-KLMNO&#10;PQRST-67890-UVWXY-12345-ZABCD&#10;EFGHI-54321-JKLMN-09876-OPQRS"></textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="bulk-license-product" class="form-label">Producto (opcional)</label>
+                                            <input type="text" class="form-control" id="bulk-license-product" 
+                                                   placeholder="Ej: Windows 10 Pro">
+                                        </div>
+                                        <button class="btn btn-success" onclick="addBulkLicenses()">
+                                            <i class="bi bi-collection"></i> Agregar Licencias en Masa
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Available Licenses List -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0"><i class="bi bi-list-ul"></i> Licencias Disponibles</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="available-licenses-list">
+                                            <div class="text-center text-muted">
+                                                <i class="bi bi-hourglass-split"></i> Cargando licencias...
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failed Orders -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Órdenes Fallidas</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="orders-container">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-hourglass-split"></i> Cargando órdenes...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

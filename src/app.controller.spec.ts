@@ -3,6 +3,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ParisService } from './paris.service';
 import { LicensesService } from './licenses.service';
+import { OrdersStateService } from './orders-state.service';
+import { Response } from 'express';
 
 // Mock ParisService
 const mockParisService = {
@@ -20,6 +22,21 @@ const mockLicensesService = {
   getLicenseStats: jest.fn(),
   getLicensesByOrder: jest.fn(),
   releaseLicense: jest.fn(),
+  assignLicenseToOrder: jest.fn(),
+};
+
+// Mock OrdersStateService
+const mockOrdersStateService = {
+  markOrderAsProcessed: jest.fn(),
+  markOrderAsFailed: jest.fn(),
+  getExistingOrder: jest.fn(),
+  getExistingFailedOrder: jest.fn(),
+  isOrderFailed: jest.fn(),
+  isOrderProcessed: jest.fn(),
+  getProcessedOrders: jest.fn(),
+  getFailedOrders: jest.fn(),
+  getOrderStats: jest.fn(),
+  filterNewOrders: jest.fn(),
 };
 
 describe('AppController', () => {
@@ -41,6 +58,10 @@ describe('AppController', () => {
           provide: LicensesService,
           useValue: mockLicensesService,
         },
+        {
+          provide: OrdersStateService,
+          useValue: mockOrdersStateService,
+        },
       ],
     }).compile();
 
@@ -48,8 +69,15 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should serve dashboard HTML file', () => {
+      const mockRes = {
+        sendFile: jest.fn(),
+      } as unknown as Response;
+
+      appController.getDashboard(mockRes);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockRes.sendFile).toHaveBeenCalledWith('index.html', { root: 'public' });
     });
   });
 

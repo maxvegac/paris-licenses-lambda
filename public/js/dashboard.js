@@ -1,0 +1,415 @@
+// Dashboard JavaScript Functions
+
+let stats = {};
+let failedOrders = [];
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadFailedOrders();
+});
+
+// Stats Functions
+async function loadStats() {
+    try {
+        const response = await fetch('/stats');
+        stats = await response.json();
+        
+        document.getElementById('processed-count').textContent = stats.totalProcessed || 0;
+        document.getElementById('failed-count').textContent = stats.totalFailed || 0;
+        
+        // Load license stats
+        const licenseResponse = await fetch('/licenses/stats');
+        const licenseStats = await licenseResponse.json();
+        document.getElementById('available-count').textContent = licenseStats.totalAvailable || 0;
+        
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        showAlert('Error cargando estadísticas', 'danger');
+    }
+}
+
+// Orders Functions
+async function loadFailedOrders() {
+    try {
+        const response = await fetch('/orders/failed');
+        failedOrders = await response.json();
+        displayFailedOrders();
+    } catch (error) {
+        console.error('Error loading failed orders:', error);
+        document.getElementById('orders-container').innerHTML = 
+            '<div class="alert alert-danger">Error cargando órdenes fallidas</div>';
+    }
+}
+
+function displayFailedOrders() {
+    const container = document.getElementById('orders-container');
+    
+    if (failedOrders.length === 0) {
+        container.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> No hay órdenes fallidas</div>';
+        return;
+    }
+
+    container.innerHTML = failedOrders.map(order => 
+        '<div class="order-item fade-in">' +
+            '<div class="order-header">' +
+                '<span class="order-number">Orden #' + order.orderNumber + '</span>' +
+                '<span class="order-status status-failed">Fallida</span>' +
+            '</div>' +
+            '<div class="order-details">' +
+                '<strong>Error:</strong> ' + order.errorMessage + '<br>' +
+                '<strong>Fecha:</strong> ' + new Date(order.processedAt).toLocaleString() +
+            '</div>' +
+            '<button class="btn btn-success btn-sm" onclick="showAssignForm(\'' + order.orderNumber + '\')">' +
+                '<i class="bi bi-key"></i> Asignar Licencia Manualmente' +
+            '</button>' +
+            '<div class="assign-form" id="form-' + order.orderNumber + '">' +
+                '<div class="row">' +
+                    '<div class="col-md-6">' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label">Seleccionar licencia existente:</label>' +
+                            '<select class="form-select" id="license-' + order.orderNumber + '">' +
+                                '<option value="">Cargando licencias...</option>' +
+                            '</select>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="col-md-6">' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label">O pegar nueva licencia:</label>' +
+                            '<input type="text" class="form-control" id="new-license-' + order.orderNumber + '" placeholder="Pega aquí la clave de licencia">' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="row">' +
+                    '<div class="col-md-6">' +
+                        '<div class="mb-3">' +
+                            '<label class="form-label">Producto (opcional):</label>' +
+                            '<input type="text" class="form-control" id="product-' + order.orderNumber + '" placeholder="Ej: Windows 10 Pro">' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="col-md-6">' +
+                        '<div class="mb-3 d-flex align-items-end">' +
+                            '<button class="btn btn-success me-2" onclick="assignLicense(\'' + order.orderNumber + '\')">' +
+                                '<i class="bi bi-check"></i> Asignar Licencia' +
+                            '</button>' +
+                            '<button class="btn btn-primary me-2" onclick="createAndAssignLicense(\'' + order.orderNumber + '\')">' +
+                                '<i class="bi bi-plus"></i> Crear y Asignar' +
+                            '</button>' +
+                            '<button class="btn btn-secondary" onclick="hideAssignForm(\'' + order.orderNumber + '\')">' +
+                                '<i class="bi bi-x"></i> Cancelar' +
+                            '</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>'
+    ).join('');
+
+    // Load available licenses for each form
+    failedOrders.forEach(order => {
+        loadAvailableLicenses(order.orderNumber);
+    });
+}
+
+async function loadAvailableLicenses(orderNumber) {
+    try {
+        const response = await fetch('/licenses/available');
+        const licenses = await response.json();
+        
+        const select = document.getElementById('license-' + orderNumber);
+        select.innerHTML = '<option value="">Seleccionar licencia...</option>';
+        
+        licenses.forEach(license => {
+            const option = document.createElement('option');
+            option.value = license.licenseKey;
+            option.textContent = license.licenseKey + ' (' + (license.productName || 'Sin producto') + ')';
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading licenses:', error);
+    }
+}
+
+function showAssignForm(orderNumber) {
+    const form = document.getElementById('form-' + orderNumber);
+    form.style.display = 'block';
+    form.classList.add('fade-in');
+}
+
+function hideAssignForm(orderNumber) {
+    const form = document.getElementById('form-' + orderNumber);
+    form.style.display = 'none';
+}
+
+async function assignLicense(orderNumber) {
+    const licenseKey = document.getElementById('license-' + orderNumber).value;
+    
+    if (!licenseKey) {
+        showAlert('Por favor selecciona una licencia', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/orders/' + orderNumber + '/assign-license', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ licenseKey })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('✅ ' + result.message, 'success');
+            hideAssignForm(orderNumber);
+            loadStats();
+            loadFailedOrders();
+        } else {
+            showAlert('❌ ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error assigning license:', error);
+        showAlert('Error asignando la licencia', 'danger');
+    }
+}
+
+async function createAndAssignLicense(orderNumber) {
+    const licenseKey = document.getElementById('new-license-' + orderNumber).value.trim();
+    const productName = document.getElementById('product-' + orderNumber).value.trim();
+
+    if (!licenseKey) {
+        showAlert('Por favor ingresa una clave de licencia', 'warning');
+        return;
+    }
+
+    try {
+        // First create the license
+        const createResponse = await fetch('/licenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                licenseKey, 
+                productName: productName || undefined 
+            })
+        });
+
+        if (!createResponse.ok) {
+            const error = await createResponse.text();
+            showAlert('❌ Error creando la licencia: ' + error, 'danger');
+            return;
+        }
+
+        // Then assign it to the order
+        const assignResponse = await fetch('/orders/' + orderNumber + '/assign-license', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey })
+        });
+        
+        const result = await assignResponse.json();
+        
+        if (result.success) {
+            showAlert('✅ ' + result.message, 'success');
+            hideAssignForm(orderNumber);
+            loadStats();
+            loadFailedOrders();
+            loadAvailableLicensesList();
+        } else {
+            showAlert('❌ ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating and assigning license:', error);
+        showAlert('❌ Error creando y asignando la licencia', 'danger');
+    }
+}
+
+async function syncOrders() {
+    try {
+        const response = await fetch('/sync');
+        const result = await response.json();
+        
+        showAlert('Sincronización completada. ' + result.newOrders.length + ' nuevas órdenes procesadas.', 'success');
+        loadStats();
+        loadFailedOrders();
+    } catch (error) {
+        console.error('Error syncing orders:', error);
+        showAlert('Error en la sincronización', 'danger');
+    }
+}
+
+// License Management Functions
+function toggleLicenseManager() {
+    const manager = document.getElementById('license-manager');
+    if (manager.style.display === 'none') {
+        manager.style.display = 'block';
+        manager.classList.add('fade-in');
+        loadAvailableLicensesList();
+    } else {
+        manager.style.display = 'none';
+    }
+}
+
+async function addSingleLicense() {
+    const licenseKey = document.getElementById('single-license-key').value.trim();
+    const productName = document.getElementById('single-license-product').value.trim();
+
+    if (!licenseKey) {
+        showAlert('Por favor ingresa una clave de licencia', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/licenses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                licenseKey, 
+                productName: productName || undefined 
+            })
+        });
+
+        if (response.ok) {
+            showAlert('✅ Licencia agregada exitosamente', 'success');
+            document.getElementById('single-license-key').value = '';
+            document.getElementById('single-license-product').value = '';
+            loadAvailableLicensesList();
+            loadStats();
+        } else {
+            const error = await response.text();
+            showAlert('❌ Error: ' + error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error adding license:', error);
+        showAlert('❌ Error agregando la licencia', 'danger');
+    }
+}
+
+async function addBulkLicenses() {
+    const licensesText = document.getElementById('bulk-licenses').value.trim();
+    const productName = document.getElementById('bulk-license-product').value.trim();
+
+    if (!licensesText) {
+        showAlert('Por favor ingresa al menos una licencia', 'warning');
+        return;
+    }
+
+    const licenseKeys = licensesText.split('\n')
+        .map(key => key.trim())
+        .filter(key => key.length > 0);
+
+    if (licenseKeys.length === 0) {
+        showAlert('No se encontraron licencias válidas', 'warning');
+        return;
+    }
+
+    try {
+        const licenses = licenseKeys.map(key => ({
+            licenseKey: key,
+            productName: productName || undefined
+        }));
+
+        const response = await fetch('/licenses/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenses })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            showAlert('✅ ' + result.count + ' licencias agregadas exitosamente', 'success');
+            document.getElementById('bulk-licenses').value = '';
+            document.getElementById('bulk-license-product').value = '';
+            loadAvailableLicensesList();
+            loadStats();
+        } else {
+            const error = await response.text();
+            showAlert('❌ Error: ' + error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error adding bulk licenses:', error);
+        showAlert('❌ Error agregando las licencias', 'danger');
+    }
+}
+
+async function loadAvailableLicensesList() {
+    try {
+        const response = await fetch('/licenses/available');
+        const licenses = await response.json();
+        
+        const container = document.getElementById('available-licenses-list');
+        
+        if (licenses.length === 0) {
+            container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No hay licencias disponibles</div>';
+            return;
+        }
+
+        container.innerHTML = licenses.map(license => 
+            '<div class="license-item fade-in">' +
+                '<div>' +
+                    '<div class="license-key">' + license.licenseKey + '</div>' +
+                    '<div class="license-product">' + (license.productName || 'Sin producto') + '</div>' +
+                '</div>' +
+                '<div class="license-actions">' +
+                    '<button class="btn btn-danger btn-sm" onclick="releaseLicense(\'' + license.licenseKey + '\')">' +
+                        '<i class="bi bi-trash"></i> Liberar' +
+                    '</button>' +
+                '</div>' +
+            '</div>'
+        ).join('');
+    } catch (error) {
+        console.error('Error loading licenses:', error);
+        document.getElementById('available-licenses-list').innerHTML = 
+            '<div class="alert alert-danger">Error cargando licencias</div>';
+    }
+}
+
+async function releaseLicense(licenseKey) {
+    if (!confirm('¿Estás seguro de que quieres liberar la licencia ' + licenseKey + '?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/licenses/release', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ licenseKey })
+        });
+
+        if (response.ok) {
+            showAlert('✅ Licencia liberada exitosamente', 'success');
+            loadAvailableLicensesList();
+            loadStats();
+        } else {
+            const error = await response.text();
+            showAlert('❌ Error: ' + error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error releasing license:', error);
+        showAlert('❌ Error liberando la licencia', 'danger');
+    }
+}
+
+// Utility Functions
+function showAlert(message, type) {
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.alert-dismissible');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    // Create new alert
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed';
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = 
+        message + 
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
