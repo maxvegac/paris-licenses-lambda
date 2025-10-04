@@ -5,6 +5,8 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ParisService } from './paris.service';
+import { OrdersStateService } from './orders-state.service';
+import { LicensesService } from './licenses.service';
 
 // Mock axios
 jest.mock('axios', () => ({
@@ -34,7 +36,27 @@ describe('ParisService', () => {
     process.env.PARIS_API_PASSWORD = mockEnv.PARIS_API_PASSWORD;
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ParisService],
+      providers: [
+        ParisService,
+        {
+          provide: OrdersStateService,
+          useValue: {
+            filterNewOrders: jest.fn(),
+            markOrderAsProcessed: jest.fn(),
+            getOrderStats: jest.fn(),
+          },
+        },
+        {
+          provide: LicensesService,
+          useValue: {
+            assignLicenseToOrder: jest.fn(),
+            addLicense: jest.fn(),
+            getAvailableLicenses: jest.fn(),
+            getUsedLicenses: jest.fn(),
+            getLicenseStats: jest.fn(),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<ParisService>(ParisService);

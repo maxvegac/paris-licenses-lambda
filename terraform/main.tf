@@ -81,6 +81,32 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "logs:PutLogEvents"
         ]
         Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.orders.arn,
+          "${aws_dynamodb_table.orders.arn}/index/*",
+          aws_dynamodb_table.licenses.arn,
+          "${aws_dynamodb_table.licenses.arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutEvents",
+          "events:DescribeRule",
+          "events:ListRules"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -95,13 +121,15 @@ resource "aws_lambda_function" "api" {
   handler       = "dist/lambda.handler"
   role          = aws_iam_role.lambda_role.arn
   timeout       = var.lambda_timeout
-  memory_size   = var.lambda_memory_size
+  memory_size   = 256  # Optimized for low volume usage
 
   environment {
     variables = {
       NODE_ENV           = var.environment
       PARIS_API_EMAIL    = var.paris_api_email
       PARIS_API_PASSWORD = var.paris_api_password
+      ORDERS_TABLE_NAME  = aws_dynamodb_table.orders.name
+      LICENSES_TABLE_NAME = aws_dynamodb_table.licenses.name
     }
   }
 
@@ -109,6 +137,35 @@ resource "aws_lambda_function" "api" {
     aws_iam_role_policy.lambda_policy,
     aws_cloudwatch_log_group.lambda_logs
   ]
+}
+
+# EventBridge Rule for automatic sync
+resource "aws_cloudwatch_event_rule" "sync_schedule" {
+  name                = "${var.project_name}-sync-schedule"
+  description         = "Trigger automatic sync of Paris orders"
+  schedule_expression = "rate(1 hour)" # Run every hour (optimized for low volume)
+
+  tags = {
+    Name        = "${var.project_name}-sync-schedule"
+    Environment = var.environment
+  }
+}
+
+# EventBridge Target to invoke Lambda
+resource "aws_cloudwatch_event_target" "lambda_target" {
+  rule      = aws_cloudwatch_event_rule.sync_schedule.name
+  target_id = "SyncLambdaTarget"
+  arn       = aws_lambda_function.api.arn
+}
+
+# Lambda permission for EventBridge
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.sync_schedule.arn
+}
 }
 
 # CloudWatch Log Group
@@ -133,6 +190,89 @@ resource "aws_lambda_function_url" "api" {
     allow_headers     = ["date", "keep-alive"]
     expose_headers    = ["date", "keep-alive"]
     max_age          = 86400
+  }
+}
+
+# DynamoDB Table for Orders State
+resource "aws_dynamodb_table" "orders" {
+  name           = "${var.project_name}-orders"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "orderNumber"
+  range_key      = "processedAt"
+
+  attribute {
+    name = "orderNumber"
+    type = "S"
+  }
+
+  attribute {
+    name = "processedAt"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  # Global Secondary Index for querying by status
+  global_secondary_index {
+    name     = "StatusIndex"
+    hash_key = "status"
+    range_key = "processedAt"
+  }
+
+  # TTL for automatic cleanup of old records (optional)
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-orders"
+    Environment = var.environment
+  }
+}
+
+# DynamoDB Table for Licenses
+resource "aws_dynamodb_table" "licenses" {
+  name           = "${var.project_name}-licenses"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "licenseKey"
+  range_key      = "assignedAt"
+
+  attribute {
+    name = "licenseKey"
+    type = "S"
+  }
+
+  attribute {
+    name = "assignedAt"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  # Global Secondary Index for querying by status
+  global_secondary_index {
+    name     = "StatusIndex"
+    hash_key = "status"
+    range_key = "assignedAt"
+  }
+
+  # Global Secondary Index for querying by order number
+  global_secondary_index {
+    name     = "OrderIndex"
+    hash_key = "orderNumber"
+    range_key = "assignedAt"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-licenses"
+    Environment = var.environment
   }
 }
 

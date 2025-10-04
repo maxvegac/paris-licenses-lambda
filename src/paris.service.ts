@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosResponse } from 'axios';
 import * as XLSX from 'xlsx';
+import { OrdersStateService } from './orders-state.service';
+import { LicensesService } from './licenses.service';
 
 export interface ParisLoginResponse {
   expiresIn: number;
@@ -76,6 +78,7 @@ export interface ParisOrder {
   billingAddress: string;
   fulfillment: string;
   opl: string;
+  assignedLicense?: string; // License key assigned to this order
 }
 
 @Injectable()
@@ -85,7 +88,10 @@ export class ParisService {
   private accessToken: string | null = null;
   private tokenExpiry: number | null = null;
 
-  constructor() {
+  constructor(
+    private readonly ordersStateService: OrdersStateService,
+    private readonly licensesService: LicensesService,
+  ) {
     this.logger.log('ParisService initialized');
   }
 
@@ -274,5 +280,88 @@ export class ParisService {
       this.logger.error('Error getting orders:', errorMessage);
       throw new Error(`Error getting orders: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Gets new orders (not previously processed) and marks them as processed
+   */
+  async getNewOrders(): Promise<ParisOrder[]> {
+    try {
+      this.logger.log('Getting new orders from Paris API...');
+      
+      // Get all orders from Paris API
+      const allOrders = await this.getOrders();
+      
+      // Filter out already processed orders
+      const newOrders = await this.ordersStateService.filterNewOrders(allOrders);
+      
+      // Process each new order: assign license and mark as processed
+      const processedOrders: ParisOrder[] = [];
+      
+      for (const order of newOrders) {
+        try {
+          // Try to assign a license to the order
+          let assignedLicense: string | null = null;
+          try {
+            assignedLicense = await this.licensesService.assignLicenseToOrder(
+              order.orderNumber,
+              order.customerEmail,
+              order.productName
+            );
+            
+            if (assignedLicense) {
+              this.logger.log(`License ${assignedLicense} assigned to order ${order.orderNumber}`);
+            } else {
+              this.logger.warn(`No available license for order ${order.orderNumber}`);
+            }
+          } catch (licenseError) {
+            const licenseErrorMessage = licenseError instanceof Error ? licenseError.message : 'Unknown error';
+            this.logger.error(`Failed to assign license to order ${order.orderNumber}:`, licenseErrorMessage);
+            // Continue processing even if license assignment fails
+          }
+
+          // Add assigned license to order data
+          const orderWithLicense: ParisOrder = {
+            ...order,
+            assignedLicense: assignedLicense || undefined,
+          };
+
+          // Mark order as processed
+          await this.ordersStateService.markOrderAsProcessed(order.orderNumber, orderWithLicense);
+          
+          processedOrders.push(orderWithLicense);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`Failed to process order ${order.orderNumber}:`, errorMessage);
+          
+          // Mark order as failed
+          try {
+            await this.ordersStateService.markOrderAsFailed(order.orderNumber, errorMessage);
+          } catch (markError) {
+            this.logger.error(`Failed to mark order ${order.orderNumber} as failed:`, markError);
+          }
+          
+          // Continue processing other orders even if one fails
+        }
+      }
+      
+      this.logger.log(`Retrieved ${processedOrders.length} new orders out of ${allOrders.length} total`);
+      return processedOrders;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error('Error getting new orders:', errorMessage);
+      throw new Error(`Error getting new orders: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Gets order processing statistics
+   */
+  async getOrderStats(): Promise<{
+    totalProcessed: number;
+    totalFailed: number;
+    lastProcessed?: string;
+  }> {
+    return await this.ordersStateService.getOrderStats();
   }
 }

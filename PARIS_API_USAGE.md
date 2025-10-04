@@ -67,6 +67,57 @@ Gets all Paris orders in JSON format.
 ]
 ```
 
+### GET /sync
+
+Synchronizes new orders from the Paris API. This endpoint:
+- Fetches all orders from Paris API
+- Filters out already processed orders
+- Marks new orders as processed in DynamoDB
+- Returns only new orders and processing statistics
+
+**URL:** `http://localhost:3000/sync`
+
+**Method:** GET
+
+**Response:**
+```json
+{
+  "newOrders": [
+    {
+      "orderNumber": "67890",
+      "customerName": "Jane Smith",
+      "customerEmail": "jane@example.com",
+      "purchaseDate": "2025-01-15",
+      "productName": "New Product",
+      "price": "15000",
+      "status": "Processing"
+    }
+  ],
+  "stats": {
+    "totalProcessed": 150,
+    "totalFailed": 3,
+    "lastProcessed": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+### GET /stats
+
+Returns processing statistics for orders.
+
+**URL:** `http://localhost:3000/stats`
+
+**Method:** GET
+
+**Response:**
+```json
+{
+  "totalProcessed": 150,
+  "totalFailed": 3,
+  "lastProcessed": "2025-01-15T10:30:00Z"
+}
+```
+
 ## Column Mapping
 
 The service automatically maps Spanish column names from the Excel to English property names:
@@ -108,7 +159,23 @@ The service automatically maps Spanish column names from the Excel to English pr
 
 3. **Excel Processing**: Base64 Excel is automatically converted to JSON with all columns mapped to English property names.
 
-4. **Logging**: The service logs all important operations to facilitate debugging.
+4. **Automatic Sync**: CloudWatch Events triggers automatic synchronization every 15 minutes to fetch new orders and assign licenses.
+
+5. **License Assignment**: New orders automatically receive available licenses from the pool.
+
+6. **Logging**: The service logs all important operations to facilitate debugging.
+
+## Automatic Synchronization
+
+The system includes automatic synchronization via AWS EventBridge:
+
+- **Schedule**: Runs every 15 minutes automatically
+- **Process**: 
+  1. Fetches new orders from Paris API
+  2. Assigns available licenses to new orders
+  3. Marks orders as processed in DynamoDB
+  4. Logs results to CloudWatch
+- **Monitoring**: Check CloudWatch logs for sync results and any errors
 
 ## Execution
 
