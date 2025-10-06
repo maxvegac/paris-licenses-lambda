@@ -25,6 +25,26 @@ export interface FactoResponse {
   };
 }
 
+interface FactoSoapResult {
+  resultado: {
+    status: string;
+    mensaje_error: string;
+  };
+  encabezado: {
+    folio: string;
+  };
+  enlaces?: {
+    dte_xml?: string;
+    dte_pdf?: string;
+    dte_pdfcedible?: string;
+    dte_timbre?: string;
+  };
+}
+
+interface FactoSoapResponse {
+  [index: number]: FactoSoapResult;
+}
+
 @Injectable()
 export class FactoService {
   private readonly logger = new Logger(FactoService.name);
@@ -38,19 +58,23 @@ export class FactoService {
   ) {
     // Verificar si estamos en modo de prueba
     const isTestMode = process.env.FACTO_TEST_MODE === 'true';
-    
+
     if (isTestMode) {
       // Usar credenciales de prueba de Facto
       this.user = '1.111.111-4/pruebasapi';
       this.pass = '90809d7721fe3cdcf1668ccf33fea982';
-      this.logger.log('FactoService initialized in TEST MODE with demo credentials');
+      this.logger.log(
+        'FactoService initialized in TEST MODE with demo credentials',
+      );
     } else {
       // Usar credenciales de producción
       this.user = process.env.FACTO_USER || '';
       this.pass = process.env.FACTO_PASS || '';
 
       if (!this.user || !this.pass) {
-        this.logger.error('FACTO_USER and FACTO_PASS environment variables are required');
+        this.logger.error(
+          'FACTO_USER and FACTO_PASS environment variables are required',
+        );
         throw new Error('Facto credentials not configured');
       }
 
@@ -63,7 +87,9 @@ export class FactoService {
    */
   async emitReceipt(data: FactoReceiptData): Promise<FactoResponse> {
     try {
-      this.logger.log(`Emitting electronic invoice for order ${data.orderNumber}`);
+      this.logger.log(
+        `Emitting electronic invoice for order ${data.orderNumber}`,
+      );
 
       // Create SOAP client
       const client = await soap.createClientAsync(this.wsdlUrl);
@@ -113,10 +139,12 @@ export class FactoService {
       };
 
       // Call emitirDocumento method
-      const result = await client.emitirDocumentoAsync(
-        { documento },
-        { headers }
-      );
+      const result = await (
+        client.emitirDocumentoAsync as (
+          args: { documento: any },
+          options: { headers: any },
+        ) => Promise<FactoSoapResponse>
+      )({ documento }, { headers });
 
       this.logger.log(`Facto response for order ${data.orderNumber}:`, result);
 
@@ -140,33 +168,43 @@ export class FactoService {
         };
 
         this.logger.log(
-          `✅ Electronic invoice created successfully for order ${data.orderNumber}, folio: ${factoResponse.folio}`
+          `✅ Electronic invoice created successfully for order ${data.orderNumber}, folio: ${factoResponse.folio}`,
         );
 
         // Save invoice files to S3 and record to DynamoDB
-        await this.saveInvoiceFiles(data.orderNumber, factoResponse.folio, factoResponse.links);
+        await this.saveInvoiceFiles(
+          data.orderNumber,
+          factoResponse.folio,
+          factoResponse.links,
+        );
       } else if (status === 1) {
         // Error in sent data
         this.logger.error(
-          `❌ Error creating electronic invoice for order ${data.orderNumber}: ${factoResponse.message}`
+          `❌ Error creating electronic invoice for order ${data.orderNumber}: ${factoResponse.message}`,
         );
       } else if (status === 2) {
         // Document created as draft but not sent to SII
         factoResponse.folio = parseInt(response.encabezado.folio);
         this.logger.warn(
-          `⚠️ Electronic invoice created as draft for order ${data.orderNumber}, folio: ${factoResponse.folio}, but not sent to SII: ${factoResponse.message}`
+          `⚠️ Electronic invoice created as draft for order ${data.orderNumber}, folio: ${factoResponse.folio}, but not sent to SII: ${factoResponse.message}`,
         );
 
         // Save draft invoice record to DynamoDB (no files to download for drafts)
-        await this.saveInvoiceRecord(data.orderNumber, factoResponse.folio, status, factoResponse.message);
+        await this.saveInvoiceRecord(
+          data.orderNumber,
+          factoResponse.folio,
+          status,
+          factoResponse.message,
+        );
       }
 
       return factoResponse;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `Error emitting electronic invoice for order ${data.orderNumber}:`,
-        errorMessage
+        errorMessage,
       );
 
       return {
@@ -183,7 +221,10 @@ export class FactoService {
     try {
       return await this.invoicesService.hasExistingInvoice(orderNumber);
     } catch (error) {
-      this.logger.error(`Error checking existing invoice for order ${orderNumber}:`, error);
+      this.logger.error(
+        `Error checking existing invoice for order ${orderNumber}:`,
+        error,
+      );
       return false;
     }
   }
@@ -194,45 +235,66 @@ export class FactoService {
   private async saveInvoiceFiles(
     orderNumber: string,
     folio: number,
-    links: { xml?: string; pdf?: string; pdfCedible?: string; timbre?: string }
+    links: { xml?: string; pdf?: string; pdfCedible?: string; timbre?: string },
   ): Promise<void> {
     try {
-      const s3Files: any = {};
-      const originalLinks: any = {};
+      const s3Files: Record<string, string> = {};
+      const originalLinks: Record<string, string> = {};
 
       // Download and save each file type
       const fileTypes = [
         { key: 'pdf', url: links.pdf, contentType: 'application/pdf' },
         { key: 'xml', url: links.xml, contentType: 'application/xml' },
-        { key: 'pdfcedible', url: links.pdfCedible, contentType: 'application/pdf' },
+        {
+          key: 'pdfcedible',
+          url: links.pdfCedible,
+          contentType: 'application/pdf',
+        },
         { key: 'timbre', url: links.timbre, contentType: 'image/png' },
       ];
 
       for (const fileType of fileTypes) {
         if (fileType.url) {
           try {
-            const s3Key = this.s3Service.generateInvoiceKey(orderNumber, folio, fileType.key as any);
+            const s3Key = this.s3Service.generateInvoiceKey(
+              orderNumber,
+              folio,
+              fileType.key as 'xml' | 'pdf' | 'timbre' | 'pdfcedible',
+            );
             const s3File = await this.s3Service.downloadAndUploadToS3(
               fileType.url,
               s3Key,
-              fileType.contentType
+              fileType.contentType,
             );
-            
+
             s3Files[fileType.key] = s3File.url;
             originalLinks[fileType.key] = fileType.url;
-            
+
             this.logger.log(`Saved ${fileType.key} file to S3: ${s3Key}`);
           } catch (fileError) {
-            this.logger.error(`Failed to save ${fileType.key} file to S3:`, fileError);
+            this.logger.error(
+              `Failed to save ${fileType.key} file to S3:`,
+              fileError,
+            );
             // Continue with other files even if one fails
           }
         }
       }
 
       // Save invoice record to DynamoDB
-      await this.saveInvoiceRecord(orderNumber, folio, 0, undefined, s3Files, originalLinks);
+      await this.saveInvoiceRecord(
+        orderNumber,
+        folio,
+        0,
+        undefined,
+        s3Files,
+        originalLinks,
+      );
     } catch (error) {
-      this.logger.error(`Error saving invoice files for order ${orderNumber}:`, error);
+      this.logger.error(
+        `Error saving invoice files for order ${orderNumber}:`,
+        error,
+      );
       // Don't throw error to avoid breaking the main flow
     }
   }
@@ -245,8 +307,8 @@ export class FactoService {
     folio: number,
     status: number,
     message?: string,
-    s3Files?: any,
-    originalLinks?: any
+    s3Files?: Record<string, string>,
+    originalLinks?: Record<string, string>,
   ): Promise<void> {
     try {
       const invoiceRecord: InvoiceRecord = {
@@ -260,7 +322,9 @@ export class FactoService {
       };
 
       await this.invoicesService.saveInvoiceRecord(invoiceRecord);
-      this.logger.log(`Invoice record saved: Order ${orderNumber}, Folio ${folio}, Status ${status}`);
+      this.logger.log(
+        `Invoice record saved: Order ${orderNumber}, Folio ${folio}, Status ${status}`,
+      );
     } catch (error) {
       this.logger.error(`Error saving invoice record:`, error);
       // Don't throw error to avoid breaking the main flow

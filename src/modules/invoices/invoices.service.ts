@@ -15,7 +15,8 @@ export class InvoicesService {
   private readonly tableName: string;
 
   constructor() {
-    this.tableName = process.env.INVOICES_TABLE_NAME || 'paris-licenses-invoices';
+    this.tableName =
+      process.env.INVOICES_TABLE_NAME || 'paris-licenses-invoices';
 
     const client = new DynamoDBClient({
       region: process.env.AWS_REGION || 'us-east-1',
@@ -44,9 +45,12 @@ export class InvoicesService {
       });
 
       await this.dynamoClient.send(command);
-      this.logger.log(`Invoice record saved: Order ${invoice.orderNumber}, Folio ${invoice.folio}`);
+      this.logger.log(
+        `Invoice record saved: Order ${invoice.orderNumber}, Folio ${invoice.folio}`,
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `Error saving invoice record for order ${invoice.orderNumber}:`,
         errorMessage,
@@ -58,7 +62,10 @@ export class InvoicesService {
   /**
    * Get invoice record by order number and folio
    */
-  async getInvoiceRecord(orderNumber: string, folio: number): Promise<InvoiceRecord | null> {
+  async getInvoiceRecord(
+    orderNumber: string,
+    folio: number,
+  ): Promise<InvoiceRecord | null> {
     try {
       const command = new GetCommand({
         TableName: this.tableName,
@@ -69,9 +76,10 @@ export class InvoicesService {
       });
 
       const result = await this.dynamoClient.send(command);
-      return result.Item as InvoiceRecord || null;
+      return (result.Item as InvoiceRecord) || null;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `Error getting invoice record for order ${orderNumber}, folio ${folio}:`,
         errorMessage,
@@ -96,7 +104,8 @@ export class InvoicesService {
       const result = await this.dynamoClient.send(command);
       return (result.Items as InvoiceRecord[]) || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `Error getting invoices for order ${orderNumber}:`,
         errorMessage,
@@ -113,7 +122,10 @@ export class InvoicesService {
       const invoices = await this.getInvoicesForOrder(orderNumber);
       return invoices.length > 0;
     } catch (error) {
-      this.logger.error(`Error checking existing invoice for order ${orderNumber}:`, error);
+      this.logger.error(
+        `Error checking existing invoice for order ${orderNumber}:`,
+        error,
+      );
       return false;
     }
   }

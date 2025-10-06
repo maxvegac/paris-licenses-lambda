@@ -17,18 +17,20 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Global validation pipe
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-    forbidNonWhitelisted: true,
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   // Serve static files from public directory
   // In Lambda, use LAMBDA_TASK_ROOT, in local development use project root
-  const publicPath = process.env.LAMBDA_TASK_ROOT 
-    ? join(process.env.LAMBDA_TASK_ROOT, 'public')  // Lambda: LAMBDA_TASK_ROOT/public
-    : join(__dirname, '..', 'public');  // Local: project/public
-  
+  const publicPath = process.env.LAMBDA_TASK_ROOT
+    ? join(process.env.LAMBDA_TASK_ROOT, 'public') // Lambda: LAMBDA_TASK_ROOT/public
+    : join(__dirname, '..', 'public'); // Local: project/public
+
   // Serve static assets with proper prefix
   app.useStaticAssets(publicPath, {
     prefix: '/',

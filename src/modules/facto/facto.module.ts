@@ -9,4 +9,3 @@ import { InvoicesModule } from '../invoices/invoices.module';
   exports: [FactoService],
 })
 export class FactoModule {}
-

@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InvoiceS3File } from '../../interfaces/invoice.interface';
 
@@ -11,7 +15,7 @@ export class S3Service {
 
   constructor() {
     this.bucketName = process.env.INVOICES_BUCKET || '';
-    
+
     if (!this.bucketName) {
       this.logger.error('INVOICES_BUCKET environment variable is required');
       throw new Error('S3 bucket not configured');
@@ -30,15 +34,19 @@ export class S3Service {
   async downloadAndUploadToS3(
     url: string,
     key: string,
-    contentType: string = 'application/octet-stream'
+    contentType: string = 'application/octet-stream',
   ): Promise<InvoiceS3File> {
     try {
-      this.logger.log(`Downloading file from ${url} and uploading to S3 as ${key}`);
+      this.logger.log(
+        `Downloading file from ${url} and uploading to S3 as ${key}`,
+      );
 
       // Download file from URL
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to download file: ${response.status} ${response.statusText}`,
+        );
       }
 
       const fileBuffer = await response.arrayBuffer();
@@ -76,11 +84,16 @@ export class S3Service {
         size: buffer.length,
       };
 
-      this.logger.log(`Successfully uploaded file to S3: ${key} (${buffer.length} bytes)`);
+      this.logger.log(
+        `Successfully uploaded file to S3: ${key} (${buffer.length} bytes)`,
+      );
       return s3File;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error downloading and uploading file to S3: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error downloading and uploading file to S3: ${errorMessage}`,
+      );
       throw new Error(`S3 upload failed: ${errorMessage}`);
     }
   }
@@ -88,7 +101,10 @@ export class S3Service {
   /**
    * Generate a presigned URL for accessing a file in S3
    */
-  async getPresignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+  async getPresignedUrl(
+    key: string,
+    expiresIn: number = 3600,
+  ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -97,8 +113,11 @@ export class S3Service {
 
       return await getSignedUrl(this.s3Client, command, { expiresIn });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error generating presigned URL for ${key}: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Error generating presigned URL for ${key}: ${errorMessage}`,
+      );
       throw new Error(`Failed to generate presigned URL: ${errorMessage}`);
     }
   }
@@ -106,7 +125,11 @@ export class S3Service {
   /**
    * Generate S3 key for invoice files
    */
-  generateInvoiceKey(orderNumber: string, folio: number, fileType: 'pdf' | 'xml' | 'pdfcedible' | 'timbre'): string {
+  generateInvoiceKey(
+    orderNumber: string,
+    folio: number,
+    fileType: 'pdf' | 'xml' | 'pdfcedible' | 'timbre',
+  ): string {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     return `invoices/${year}/${month}/${orderNumber}/${folio}.${fileType}`;

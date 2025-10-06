@@ -34,8 +34,10 @@ export class EmailService {
       const htmlContent = this.generateEmailHTML(emailData);
 
       // Check if should redirect emails
-      const devEmailRedirect = process.env.DEV_EMAIL_REDIRECT?.toLowerCase() === 'true'
-      const devEmail = process.env.DEV_EMAIL || process.env.dev_email || process.env.SMTP_USER;
+      const devEmailRedirect =
+        process.env.DEV_EMAIL_REDIRECT?.toLowerCase() === 'true';
+      const devEmail =
+        process.env.DEV_EMAIL || process.env.dev_email || process.env.SMTP_USER;
 
       let recipientEmail = emailData.customerEmail;
       let subject = `Orden ${emailData.orderNumber} - Entrega de licencia ${emailData.productName}`;
@@ -50,15 +52,15 @@ export class EmailService {
         );
       }
 
-             const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
-             const fromName = process.env.SMTP_FROM_NAME || 'Equipo IVI';
-             
-             const mailOptions = {
-               from: `"${fromName}" <${fromEmail}>`,
-               to: recipientEmail,
-               subject: subject,
-               html: htmlContent,
-             };
+      const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+      const fromName = process.env.SMTP_FROM_NAME || 'Equipo IVI';
+
+      const mailOptions = {
+        from: `"${fromName}" <${fromEmail}>`,
+        to: recipientEmail,
+        subject: subject,
+        html: htmlContent,
+      };
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const result = await this.transporter.sendMail(mailOptions);
@@ -82,9 +84,19 @@ export class EmailService {
       // Read the template file
       // In Lambda, use LAMBDA_TASK_ROOT, in local development use project root
       const templatePath = process.env.LAMBDA_TASK_ROOT
-        ? path.join(process.env.LAMBDA_TASK_ROOT, 'templates', 'email', 'license-delivery.html')  // Lambda: LAMBDA_TASK_ROOT/templates/email/license-delivery.html
-        : path.join(process.cwd(), 'templates', 'email', 'license-delivery.html');  // Local: project/templates/email/license-delivery.html
-      
+        ? path.join(
+            process.env.LAMBDA_TASK_ROOT,
+            'templates',
+            'email',
+            'license-delivery.html',
+          ) // Lambda: LAMBDA_TASK_ROOT/templates/email/license-delivery.html
+        : path.join(
+            process.cwd(),
+            'templates',
+            'email',
+            'license-delivery.html',
+          ); // Local: project/templates/email/license-delivery.html
+
       const templateSource = fs.readFileSync(templatePath, 'utf8');
 
       // Compile the template

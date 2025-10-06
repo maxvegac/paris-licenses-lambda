@@ -6,15 +6,15 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication;
 
-        beforeEach(async () => {
-          // Configurar variables de entorno para testing
-          process.env.FACTO_TEST_MODE = 'true';
-          process.env.PARIS_API_EMAIL = 'test@example.com';
-          process.env.PARIS_API_PASSWORD = 'test_password';
-          process.env.SMTP_USER = 'test@example.com';
-          process.env.SMTP_PASSWORD = 'test_password';
-          process.env.INVOICES_BUCKET = 'test-invoices-bucket';
-          process.env.INVOICES_TABLE_NAME = 'test-invoices-table';
+  beforeEach(async () => {
+    // Configurar variables de entorno para testing
+    process.env.FACTO_TEST_MODE = 'true';
+    process.env.PARIS_API_EMAIL = 'test@example.com';
+    process.env.PARIS_API_PASSWORD = 'test_password';
+    process.env.SMTP_USER = 'test@example.com';
+    process.env.SMTP_PASSWORD = 'test_password';
+    process.env.INVOICES_BUCKET = 'test-invoices-bucket';
+    process.env.INVOICES_TABLE_NAME = 'test-invoices-table';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],

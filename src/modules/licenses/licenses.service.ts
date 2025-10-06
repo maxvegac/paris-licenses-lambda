@@ -176,47 +176,66 @@ export class LicensesService {
 
       // Emit electronic invoice if not already exists
       try {
-        const hasExistingInvoice = await this.factoService.hasExistingInvoice(orderNumber);
-        
+        const hasExistingInvoice =
+          await this.factoService.hasExistingInvoice(orderNumber);
+
         if (!hasExistingInvoice) {
-          this.logger.log(`Emitting electronic invoice for order ${orderNumber}`);
-          
+          this.logger.log(
+            `Emitting electronic invoice for order ${orderNumber}`,
+          );
+
           // Get order data from Paris API
           const orderData = await this.getOrderData(orderNumber);
-          
+
           const invoiceData = {
             orderNumber,
-            customerRut: orderData?.rut || orderData?.documentNumber || '12345678-9',
+            customerRut:
+              orderData?.rut || orderData?.documentNumber || '12345678-9',
             customerName: orderData?.customerName || customerName,
             customerEmail: orderData?.customerEmail || customerEmail,
-            totalAmount: orderData ? this.parseAmount(orderData.customerPaymentPrice) : 50000,
-            productName: orderData?.productName || productName || availableLicense.productName || 'License',
+            totalAmount: orderData
+              ? this.parseAmount(orderData.customerPaymentPrice)
+              : 50000,
+            productName:
+              orderData?.productName ||
+              productName ||
+              availableLicense.productName ||
+              'License',
           };
 
-          const invoiceResult = await this.factoService.emitReceipt(invoiceData);
-          
+          const invoiceResult =
+            await this.factoService.emitReceipt(invoiceData);
+
           if (invoiceResult.status === 0) {
             this.logger.log(
-              `✅ Electronic invoice created successfully for order ${orderNumber}, folio: ${invoiceResult.folio}`
+              `✅ Electronic invoice created successfully for order ${orderNumber}, folio: ${invoiceResult.folio}`,
             );
-            
+
             // Update order with invoice information
             if (invoiceResult.folio) {
-              await this.updateOrderWithInvoiceInfo(orderNumber, invoiceResult.folio, invoiceResult.status);
+              await this.updateOrderWithInvoiceInfo(
+                orderNumber,
+                invoiceResult.folio,
+                invoiceResult.status,
+              );
             }
           } else {
             this.logger.warn(
-              `⚠️ Electronic invoice creation failed for order ${orderNumber}: ${invoiceResult.message}`
+              `⚠️ Electronic invoice creation failed for order ${orderNumber}: ${invoiceResult.message}`,
             );
           }
         } else {
-          this.logger.log(`Order ${orderNumber} already has an electronic invoice, skipping creation`);
+          this.logger.log(
+            `Order ${orderNumber} already has an electronic invoice, skipping creation`,
+          );
         }
       } catch (invoiceError) {
         // Don't fail license assignment if invoice creation fails
         this.logger.error(
           `Error creating electronic invoice for order ${orderNumber}:`,
-          invoiceError instanceof Error ? invoiceError.message : 'Unknown error'
+          invoiceError instanceof Error
+            ? invoiceError.message
+            : 'Unknown error',
         );
       }
 
@@ -615,11 +634,11 @@ export class LicensesService {
   private async getOrderData(orderNumber: string): Promise<ParisOrder | null> {
     try {
       const orders = await this.parisService.getOrders();
-      return orders.find(order => order.orderNumber === orderNumber) || null;
+      return orders.find((order) => order.orderNumber === orderNumber) || null;
     } catch (error) {
       this.logger.error(
         `Error getting order data for ${orderNumber}:`,
-        error instanceof Error ? error.message : 'Unknown error'
+        error instanceof Error ? error.message : 'Unknown error',
       );
       return null;
     }
@@ -630,12 +649,10 @@ export class LicensesService {
    */
   private parseAmount(amountString: string): number {
     if (!amountString) return 50000;
-    
+
     // Remove currency symbols and spaces, replace comma with dot
-    const cleanAmount = amountString
-      .replace(/[^\d.,]/g, '')
-      .replace(',', '.');
-    
+    const cleanAmount = amountString.replace(/[^\d.,]/g, '').replace(',', '.');
+
     const amount = parseFloat(cleanAmount);
     return isNaN(amount) ? 50000 : Math.round(amount);
   }
@@ -646,7 +663,7 @@ export class LicensesService {
   private async updateOrderWithInvoiceInfo(
     orderNumber: string,
     folio: number,
-    status: number
+    status: number,
   ): Promise<void> {
     try {
       // Get current order state
@@ -678,7 +695,10 @@ export class LicensesService {
       await this.dynamoClient.send(updateCommand);
       this.logger.log(`Order ${orderNumber} updated with invoice information`);
     } catch (error) {
-      this.logger.error(`Error updating order ${orderNumber} with invoice info:`, error);
+      this.logger.error(
+        `Error updating order ${orderNumber} with invoice info:`,
+        error,
+      );
       // Don't throw error to avoid breaking the main flow
     }
   }
