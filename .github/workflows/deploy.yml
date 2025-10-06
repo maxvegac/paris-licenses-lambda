@@ -134,6 +134,9 @@ jobs:
         export TF_VAR_smtp_from_name="${{ secrets.SMTP_FROM_NAME }}"
         export TF_VAR_dev_email_redirect="${{ secrets.DEV_EMAIL_REDIRECT }}"
         export TF_VAR_dev_email="${{ secrets.DEV_EMAIL }}"
+        export TF_VAR_facto_test_mode="${{ secrets.FACTO_TEST_MODE }}"
+        export TF_VAR_facto_user="${{ secrets.FACTO_USER }}"
+        export TF_VAR_facto_pass="${{ secrets.FACTO_PASS }}"
         
         echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
         echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"
@@ -258,6 +261,9 @@ jobs:
         export TF_VAR_smtp_from_name="${{ secrets.SMTP_FROM_NAME }}"
         export TF_VAR_dev_email_redirect="${{ secrets.DEV_EMAIL_REDIRECT }}"
         export TF_VAR_dev_email="${{ secrets.DEV_EMAIL }}"
+        export TF_VAR_facto_test_mode="${{ secrets.FACTO_TEST_MODE }}"
+        export TF_VAR_facto_user="${{ secrets.FACTO_USER }}"
+        export TF_VAR_facto_pass="${{ secrets.FACTO_PASS }}"
         
         echo "🔍 Debug: STATE_BUCKET = $STATE_BUCKET"
         echo "🔍 Debug: TF_BACKEND_BUCKET = $TF_BACKEND_BUCKET"

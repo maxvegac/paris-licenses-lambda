@@ -76,3 +76,23 @@ variable "dev_email" {
   default     = ""
 }
 
+variable "facto_test_mode" {
+  description = "Enable Facto test mode (use demo credentials)"
+  type        = string
+  default     = "true"
+}
+
+variable "facto_user" {
+  description = "Facto API user for production"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "facto_pass" {
+  description = "Facto API password for production"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+

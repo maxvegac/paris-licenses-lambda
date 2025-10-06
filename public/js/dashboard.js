@@ -164,8 +164,11 @@ function displayProcessedOrders() {
                 '<button class="btn btn-primary btn-sm me-2" onclick="resendOrderEmail(\'' + order.orderNumber + '\')">' +
                     '<i class="bi bi-envelope"></i> Reenviar Email' +
                 '</button>' +
-                '<button class="btn btn-warning btn-sm" onclick="showReplaceLicenseForm(\'' + order.orderNumber + '\', \'' + order.licenseKey + '\')">' +
+                '<button class="btn btn-warning btn-sm me-2" onclick="showReplaceLicenseForm(\'' + order.orderNumber + '\', \'' + order.licenseKey + '\')">' +
                     '<i class="bi bi-arrow-repeat"></i> Reemplazar Licencia' +
+                '</button>' +
+                '<button class="btn btn-success btn-sm" onclick="generateInvoiceForOrder(\'' + order.orderNumber + '\')">' +
+                    '<i class="bi bi-receipt"></i> Generar Boleta' +
                 '</button>' +
             '</div>' +
         '</div>'
@@ -633,4 +636,171 @@ function showAlert(message, type) {
             alertDiv.remove();
         }
     }, 5000);
+}
+
+// Billing Functions - Updated: 2025-10-04 23:37
+function toggleBillingManager() {
+    const billingManager = document.getElementById('billing-manager');
+    const licenseManager = document.getElementById('license-manager');
+    
+    if (billingManager.style.display === 'none') {
+        billingManager.style.display = 'block';
+        licenseManager.style.display = 'none';
+    } else {
+        billingManager.style.display = 'none';
+    }
+}
+
+async function testBillingConnection() {
+    const statusDiv = document.getElementById('billing-connection-status');
+    statusDiv.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div>Probando conexión...';
+    
+    try {
+        const response = await fetch('/billing/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle"></i> ' + result.message + '</div>';
+        } else {
+            statusDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle"></i> ' + result.message + '</div>';
+        }
+    } catch (error) {
+        console.error('Error testing billing connection:', error);
+        statusDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle"></i> Error al probar la conexión</div>';
+    }
+}
+
+async function generateInvoiceForOrder(orderNumber) {
+    // If orderNumber is not provided, get it from the input field
+    if (!orderNumber) {
+        orderNumber = document.getElementById('invoice-order-number').value.trim();
+        if (!orderNumber) {
+            showAlert('❌ Por favor ingresa un número de orden', 'danger');
+            return;
+        }
+    }
+    
+    const statusDiv = document.getElementById('invoice-generation-status');
+    if (statusDiv) {
+        statusDiv.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div>Generando boleta...';
+    }
+    
+    try {
+        // First, get the order details
+        const ordersResponse = await fetch('/orders');
+        const orders = await ordersResponse.json();
+        const order = orders.find(o => o.orderNumber === orderNumber);
+        
+        if (!order) {
+            showAlert('❌ Orden no encontrada: ' + orderNumber, 'danger');
+            if (statusDiv) statusDiv.innerHTML = '';
+            return;
+        }
+        
+        // Create invoice data according to Koywe API structure
+        const totalAmount = order.totalAmount || 50000;
+        // En Chile el IVA es exactamente 19%
+        const netAmount = Math.round(totalAmount / 1.19);
+        const taxAmount = totalAmount - netAmount;
+        
+        console.log(`Cálculos de impuestos para Boleta Electrónica:
+        Total con IVA: ${totalAmount}
+        Neto (sin IVA): ${netAmount}
+        IVA (19%): ${taxAmount}
+        Verificación: ${netAmount} + ${taxAmount} = ${netAmount + taxAmount}
+        Estructura Koywe: net_amount=${netAmount}, taxes_amount=${taxAmount}, total_amount=${netAmount + taxAmount}`);
+        
+        // For Koywe, net_amount should equal the sum of total_amount_line in details
+        // So we need to send net price in details, not total price
+        
+        const invoiceData = {
+            header: {
+                account_id: 423, // ID de cuenta según documentación
+                document_type_id: 37, // Boleta electrónica (como string)
+                received_issued_flag: 1,
+                issue_date: new Date().toISOString().split('T')[0],
+                issuer_tax_id_code: "76373632-6",
+                issuer_tax_id_type: "CL-RUT", // Formato correcto para Chile
+                issuer_legal_name: "IVI SpA",
+                issuer_address: "Dirección de la empresa",
+                issuer_district: "Santiago",
+                issuer_city: "Santiago",
+                issuer_country_id: "253", // ID de Chile según documentación
+                issuer_phone: "+56 9 3456 7998",
+                issuer_activity: "Venta de software",
+                receiver_tax_id_code: order.customerRut || "12345678-9",
+                receiver_tax_id_type: "CL-RUT", // Formato correcto para Chile
+                receiver_legal_name: order.customerName || "Cliente",
+                receiver_address: "",
+                receiver_district: "",
+                receiver_city: "",
+                receiver_country_id: "253", // ID de Chile según documentación
+                receiver_phone: "",
+                receiver_activity: "",
+                payment_conditions: "0", // Según documentación
+                currency_id: 39 // ID de CLP según documentación
+            },
+            details: [{
+                quantity: 1,
+                sku: `LIC-${orderNumber}`, // SKU único para la licencia
+                line_description: order.productName || "Licencia de Software",
+                unit_measure: "UN",
+                unit_price: netAmount, // Precio unitario sin impuestos
+                long_description: `Orden: ${orderNumber} - Licencia: ${order.licenseKey || 'N/A'}`,
+                modifier_amount: 0, // Sin modificadores
+                total_taxes: taxAmount, // Impuestos de esta línea
+                modifier_percentage: 0, // Sin modificadores porcentuales
+                total_amount_line: netAmount, // Total de la línea sin impuestos
+                taxes: [{
+                    tax_type_id: "387", // ID del IVA según documentación
+                    tax_percentage: 19, // 19% IVA
+                    tax_amount: taxAmount
+                }]
+            }],
+            totals: {
+                net_amount: netAmount,
+                taxes_amount: taxAmount,
+                total_amount: netAmount + taxAmount // Total final = neto + impuestos
+            }
+        };
+        
+        console.log('Sending invoice data:', JSON.stringify(invoiceData, null, 2));
+        
+        // Send invoice creation request
+        const response = await fetch('/billing/create-invoice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(invoiceData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('✅ ' + result.message, 'success');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle"></i> Boleta generada exitosamente</div>';
+            }
+            // Clear the input field
+            document.getElementById('invoice-order-number').value = '';
+        } else {
+            showAlert('❌ ' + result.message, 'danger');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle"></i> Error al generar boleta</div>';
+            }
+        }
+    } catch (error) {
+        console.error('Error generating invoice:', error);
+        showAlert('❌ Error al generar la boleta', 'danger');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle"></i> Error al generar boleta</div>';
+        }
+    }
 }

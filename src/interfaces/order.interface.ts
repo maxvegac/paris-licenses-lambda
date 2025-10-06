@@ -5,6 +5,12 @@ export interface OrderState {
   orderData?: any;
   errorMessage?: string;
   licenseKey?: string; // License assigned to the order
+  invoiceInfo?: {
+    folio?: number;
+    status?: number;
+    hasInvoice: boolean;
+    s3PdfUrl?: string;
+  };
   ttl?: number; // For automatic cleanup
 }
 

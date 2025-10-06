@@ -23,3 +23,8 @@ smtp_from_name   = "Equipo IVI"
 dev_email_redirect = "false"
 dev_email          = "your_dev_email@gmail.com"
 
+# Facto API Configuration
+facto_test_mode = "true"
+facto_user      = "76373632-6/786c"
+facto_pass      = "d7364e0b3edcfce2547dee444850cf3d"
+

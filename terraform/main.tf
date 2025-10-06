@@ -30,6 +30,27 @@ resource "aws_s3_bucket" "lambda_bucket" {
   bucket = "${var.project_name}-lambda-deployments-${random_string.bucket_suffix.result}"
 }
 
+# S3 Bucket to store electronic invoices (boletas)
+resource "aws_s3_bucket" "invoices_bucket" {
+  bucket = "${var.project_name}-invoices-${random_string.bucket_suffix.result}"
+}
+
+resource "aws_s3_bucket_versioning" "invoices_bucket_versioning" {
+  bucket = aws_s3_bucket.invoices_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "invoices_bucket_pab" {
+  bucket = aws_s3_bucket.invoices_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "random_string" "bucket_suffix" {
   length  = 8
   special = false
@@ -96,7 +117,29 @@ resource "aws_iam_role_policy" "lambda_policy" {
           aws_dynamodb_table.orders.arn,
           "${aws_dynamodb_table.orders.arn}/index/*",
           aws_dynamodb_table.licenses.arn,
-          "${aws_dynamodb_table.licenses.arn}/index/*"
+          "${aws_dynamodb_table.licenses.arn}/index/*",
+          aws_dynamodb_table.invoices.arn,
+          "${aws_dynamodb_table.invoices.arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.invoices_bucket.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.invoices_bucket.arn
         ]
       },
       {
@@ -130,12 +173,17 @@ resource "aws_lambda_function" "api" {
       PARIS_API_PASSWORD  = var.paris_api_password
       ORDERS_TABLE_NAME   = aws_dynamodb_table.orders.name
       LICENSES_TABLE_NAME = aws_dynamodb_table.licenses.name
+      INVOICES_TABLE_NAME = aws_dynamodb_table.invoices.name
+      INVOICES_BUCKET     = aws_s3_bucket.invoices_bucket.id
       SMTP_USER           = var.smtp_user
       SMTP_PASSWORD       = var.smtp_password
       SMTP_FROM_EMAIL     = var.smtp_from_email
       SMTP_FROM_NAME      = var.smtp_from_name
       DEV_EMAIL_REDIRECT  = var.dev_email_redirect
       DEV_EMAIL           = var.dev_email
+      FACTO_TEST_MODE     = var.facto_test_mode
+      FACTO_USER          = var.facto_user
+      FACTO_PASS          = var.facto_pass
     }
   }
 
@@ -284,6 +332,53 @@ resource "aws_dynamodb_table" "licenses" {
 
   tags = {
     Name        = "${var.project_name}-licenses"
+    Environment = var.environment
+  }
+}
+
+# DynamoDB Table for Invoices (Boletas)
+resource "aws_dynamodb_table" "invoices" {
+  name           = "${var.project_name}-invoices"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "orderNumber"
+  range_key      = "folio"
+
+  attribute {
+    name = "orderNumber"
+    type = "S"
+  }
+
+  attribute {
+    name = "folio"
+    type = "N"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
+  }
+
+  # Global Secondary Index for querying by status
+  global_secondary_index {
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  # TTL for automatic cleanup of old records (optional)
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-invoices"
     Environment = var.environment
   }
 }

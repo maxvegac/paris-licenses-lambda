@@ -17,3 +17,13 @@ output "s3_bucket_name" {
   description = "Name of the S3 bucket for Lambda deployments"
   value       = aws_s3_bucket.lambda_bucket.bucket
 }
+
+output "invoices_bucket_name" {
+  description = "Name of the S3 bucket for storing electronic invoices"
+  value       = aws_s3_bucket.invoices_bucket.bucket
+}
+
+output "invoices_table_name" {
+  description = "Name of the DynamoDB table for tracking invoices"
+  value       = aws_dynamodb_table.invoices.name
+}

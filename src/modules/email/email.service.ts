@@ -33,15 +33,14 @@ export class EmailService {
     try {
       const htmlContent = this.generateEmailHTML(emailData);
 
-      // Check if we're in development mode and should redirect emails
-      const isDevelopment =
-        process.env.DEV_EMAIL_REDIRECT?.toLowerCase() === 'true'
+      // Check if should redirect emails
+      const devEmailRedirect = process.env.DEV_EMAIL_REDIRECT?.toLowerCase() === 'true'
       const devEmail = process.env.DEV_EMAIL || process.env.dev_email || process.env.SMTP_USER;
 
       let recipientEmail = emailData.customerEmail;
       let subject = `Orden ${emailData.orderNumber} - Entrega de licencia ${emailData.productName}`;
 
-      if (isDevelopment && devEmail) {
+      if (devEmailRedirect && devEmail) {
         // In development, redirect to dev email and add original recipient info
         recipientEmail = devEmail;
         subject = `[DEV] ${subject} (Original: ${emailData.customerEmail})`;

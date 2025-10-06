@@ -6,7 +6,16 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication;
 
-  beforeEach(async () => {
+        beforeEach(async () => {
+          // Configurar variables de entorno para testing
+          process.env.FACTO_TEST_MODE = 'true';
+          process.env.PARIS_API_EMAIL = 'test@example.com';
+          process.env.PARIS_API_PASSWORD = 'test_password';
+          process.env.SMTP_USER = 'test@example.com';
+          process.env.SMTP_PASSWORD = 'test_password';
+          process.env.INVOICES_BUCKET = 'test-invoices-bucket';
+          process.env.INVOICES_TABLE_NAME = 'test-invoices-table';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -19,6 +28,16 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer() as Parameters<typeof request>[0])
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect('Content-Type', /html/);
+  });
+
+  it('/health (GET)', () => {
+    return request(app.getHttpServer() as Parameters<typeof request>[0])
+      .get('/health')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveProperty('status', 'OK');
+        expect(res.body).toHaveProperty('timestamp');
+      });
   });
 });

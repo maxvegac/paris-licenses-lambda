@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
@@ -7,10 +7,13 @@ import {
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { EmailService } from '../email/email.service';
+import { FactoService } from '../facto/facto.service';
+import { ParisService } from '../paris/paris.service';
 import {
   License,
   LicenseReplacement,
 } from '../../interfaces/license.interface';
+import { ParisOrder } from '../../interfaces/order.interface';
 
 @Injectable()
 export class LicensesService {
@@ -18,7 +21,12 @@ export class LicensesService {
   private readonly dynamoClient: DynamoDBDocumentClient;
   private readonly tableName: string;
 
-  constructor(private readonly emailService: EmailService) {
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly factoService: FactoService,
+    @Inject(forwardRef(() => ParisService))
+    private readonly parisService: ParisService,
+  ) {
     this.tableName =
       process.env.LICENSES_TABLE_NAME || 'paris-licenses-licenses';
 
@@ -165,6 +173,52 @@ export class LicensesService {
       this.logger.log(
         `Email sent successfully to ${customerEmail} for order ${orderNumber}`,
       );
+
+      // Emit electronic invoice if not already exists
+      try {
+        const hasExistingInvoice = await this.factoService.hasExistingInvoice(orderNumber);
+        
+        if (!hasExistingInvoice) {
+          this.logger.log(`Emitting electronic invoice for order ${orderNumber}`);
+          
+          // Get order data from Paris API
+          const orderData = await this.getOrderData(orderNumber);
+          
+          const invoiceData = {
+            orderNumber,
+            customerRut: orderData?.rut || orderData?.documentNumber || '12345678-9',
+            customerName: orderData?.customerName || customerName,
+            customerEmail: orderData?.customerEmail || customerEmail,
+            totalAmount: orderData ? this.parseAmount(orderData.customerPaymentPrice) : 50000,
+            productName: orderData?.productName || productName || availableLicense.productName || 'License',
+          };
+
+          const invoiceResult = await this.factoService.emitReceipt(invoiceData);
+          
+          if (invoiceResult.status === 0) {
+            this.logger.log(
+              `✅ Electronic invoice created successfully for order ${orderNumber}, folio: ${invoiceResult.folio}`
+            );
+            
+            // Update order with invoice information
+            if (invoiceResult.folio) {
+              await this.updateOrderWithInvoiceInfo(orderNumber, invoiceResult.folio, invoiceResult.status);
+            }
+          } else {
+            this.logger.warn(
+              `⚠️ Electronic invoice creation failed for order ${orderNumber}: ${invoiceResult.message}`
+            );
+          }
+        } else {
+          this.logger.log(`Order ${orderNumber} already has an electronic invoice, skipping creation`);
+        }
+      } catch (invoiceError) {
+        // Don't fail license assignment if invoice creation fails
+        this.logger.error(
+          `Error creating electronic invoice for order ${orderNumber}:`,
+          invoiceError instanceof Error ? invoiceError.message : 'Unknown error'
+        );
+      }
 
       return availableLicense.licenseKey;
     } catch (error) {
@@ -552,6 +606,80 @@ export class LicensesService {
         errorMessage,
       );
       return null;
+    }
+  }
+
+  /**
+   * Get order data from Paris API
+   */
+  private async getOrderData(orderNumber: string): Promise<ParisOrder | null> {
+    try {
+      const orders = await this.parisService.getOrders();
+      return orders.find(order => order.orderNumber === orderNumber) || null;
+    } catch (error) {
+      this.logger.error(
+        `Error getting order data for ${orderNumber}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Parse amount string to number
+   */
+  private parseAmount(amountString: string): number {
+    if (!amountString) return 50000;
+    
+    // Remove currency symbols and spaces, replace comma with dot
+    const cleanAmount = amountString
+      .replace(/[^\d.,]/g, '')
+      .replace(',', '.');
+    
+    const amount = parseFloat(cleanAmount);
+    return isNaN(amount) ? 50000 : Math.round(amount);
+  }
+
+  /**
+   * Update order with invoice information
+   */
+  private async updateOrderWithInvoiceInfo(
+    orderNumber: string,
+    folio: number,
+    status: number
+  ): Promise<void> {
+    try {
+      // Get current order state
+      const command = new GetCommand({
+        TableName: this.tableName,
+        Key: { orderNumber },
+      });
+
+      const result = await this.dynamoClient.send(command);
+      if (!result.Item) {
+        this.logger.warn(`Order ${orderNumber} not found for invoice update`);
+        return;
+      }
+
+      // Update order with invoice information
+      const updateCommand = new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          ...result.Item,
+          invoiceInfo: {
+            folio,
+            status,
+            hasInvoice: true,
+            // s3PdfUrl will be set when we have the S3 URL
+          },
+        },
+      });
+
+      await this.dynamoClient.send(updateCommand);
+      this.logger.log(`Order ${orderNumber} updated with invoice information`);
+    } catch (error) {
+      this.logger.error(`Error updating order ${orderNumber} with invoice info:`, error);
+      // Don't throw error to avoid breaking the main flow
     }
   }
 }
